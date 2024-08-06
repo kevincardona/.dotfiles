@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+
+# Directories to search for sessions
+declare -a SEARCH_PATHS=(
+    "$HOME"
+    "$HOME/projects"
+    "$HOME/.config"
+    "$HOME/.dotfiles"
+    "$HOME/work"
+    "$HOME/work/valert"
+    "$HOME/work/telekit"
+    "$HOME/work/racc"
+    "$HOME/personal"
+    "$HOME/personal/godot-games"
+    "$HOME/personal/rust-learn"
+)
+
+usage() {
+    echo "Usage: $0 [directory]"
+    exit 1
+}
+
+# Check if exactly one argument is provided, if not use fzf to select directory
+if [[ $# -eq 1 ]]; then
+    selected=$1
+else
+    selected=$(find "${SEARCH_PATHS[@]}" -mindepth 1 -maxdepth 1 -type d | fzf)
+fi
+
+# Exit if no directory was selected
+if [[ -z $selected ]]; then
+    exit 0
+fi
+
+# Create a safe session name by replacing periods with underscores
+selected_name=$(basename "$selected" | tr . _)
+
+# Check if tmux is running
+tmux_running=$(pgrep tmux)
+
+# If not inside a tmux session and tmux is not running, start a new session
+if [[ -z $TMUX ]] && [[ -z $tmux_running ]]; then
+    tmux new-session -s "$selected_name" -c "$selected"
+    exit 0
+fi
+
+# If the session doesn't already exist, create it
+if ! tmux has-session -t="$selected_name" 2> /dev/null; then
+    tmux new-session -ds "$selected_name" -c "$selected"
+fi
+
+# Switch to the selected session
+tmux switch-client -t "$selected_name"
+

@@ -10,7 +10,9 @@ declare -a SEARCH_PATHS=(
     "$HOME/work/valert"
     "$HOME/work/telekit"
     "$HOME/work/racc"
+    "$HOME/work/number-provisioning"
     "$HOME/personal"
+    "$HOME/personal/scratchpad"
     "$HOME/personal/godot-games"
     "$HOME/personal/rust-learn"
 )

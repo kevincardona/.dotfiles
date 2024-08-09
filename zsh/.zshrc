@@ -39,7 +39,7 @@ bindkey '\e\e[D' backward-word
 
 # functions
 ccd() {
-    local selected=$(find ~ ~/projects ~/.config ~/.dotfiles ~/work ~/work/valert ~/work/telekit ~/work/racc ~/personal -mindepth 1 -maxdepth 1 -type d | fzf)
+    local selected=$(find ~ ~/projects ~/.config ~/.dotfiles ~/work ~/work/number-provisioning ~/work/valert ~/work/telekit ~/work/racc ~/personal ~/personal/scratchpad -mindepth 1 -maxdepth 1 -type d | fzf)
 
     if [[ -z $selected ]]; then
         echo "No directory selected."

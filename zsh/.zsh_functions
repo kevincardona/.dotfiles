@@ -1,0 +1,128 @@
+ccd() {
+    local selected=$(find ~ ~/projects ~/.config ~/.dotfiles ~/work ~/work/number-provisioning ~/work/valert ~/work/telekit ~/work/racc ~/personal ~/personal/scratchpad -mindepth 1 -maxdepth 1 -type d | fzf)
+    if [[ -z $selected ]]; then
+        echo "No directory selected."
+        return 1
+    fi
+    cd "$selected" || return
+    if [[ -n $TMUX ]]; then
+        tmux send-keys "cd $selected" C-m
+    fi
+}
+
+cdr() {
+  cd "$(git rev-parse --show-toplevel)"
+}
+
+cdrr() {
+  cdr && cd .. && cdr
+}
+
+cds() {
+  if git submodule status; then
+    local submodule_path
+    submodule_path=$(git submodule status | awk '{print $2}' | fzf --height 40% --reverse --border)
+    if [ -n "$submodule_path" ]; then
+      cd "$submodule_path" || echo "Failed to change directory to submodule: $submodule_path"
+    else
+      echo "No submodule selected."
+    fi
+  else
+    echo "No submodules found or not inside a Git repository."
+  fi
+}
+
+menubar() {
+    currentState=$(defaults read NSGlobalDomain _HIHideMenuBar)
+    if [ "$currentState" -eq 1 ]; then
+        defaults write NSGlobalDomain _HIHideMenuBar -bool false
+    else
+        defaults write NSGlobalDomain _HIHideMenuBar -bool true
+    fi
+    killall Finder
+}
+
+lazy_load() {
+    local -a names
+    if [[ -n "$ZSH_VERSION" ]]; then
+        names=("${(@s: :)${1}}")
+    else
+        names=($1)
+    fi
+    unalias "${names[@]}"
+    . $2
+    shift 2
+    $*
+}
+
+group_lazy_load() {
+    local script
+    script=$1
+    shift 1
+    for cmd in "$@"; do
+        alias $cmd="lazy_load \"$*\" $script $cmd"
+    done
+}
+
+# Connect or disconnect AirPods
+ap() {
+    if ! type "blueutil" > /dev/null; then
+        brew install blueutil
+    fi
+    if blueutil --paired | grep -q "10-b5-88-9e-34-81, connected"; then
+        echo "AirPods are connected. Disconnecting..."
+        blueutil --disconnect 10-b5-88-9e-34-81
+    else
+        echo "Connecting AirPods..."
+        blueutil --connect 10-b5-88-9e-34-81
+        if [ $? -ne 0 ]; then
+            echo "Failed to connect AirPods."
+            return 1
+        fi
+        echo "AirPods connected."
+    fi
+}
+
+spinner() {
+    local pid=$1
+    local delay=0.1
+    local spinstr='|/-\'
+    while [ "$(ps a | awk '{print $1}' | grep $pid)" ]; do
+        local temp=${spinstr#?}
+        printf " [%c]  " "$spinstr"
+        local spinstr=$temp${spinstr%"$temp"}
+        sleep $delay
+        printf "\b\b\b\b\b\b"
+    done
+    printf "    \b\b\b\b"
+}
+
+fzf-insert-last-command-output() {
+    local last_command=$(fc -ln -1 | head -n 1)
+    echo -e "\n\e[33mAre you sure you want to rerun '$last_command'? (y/n): \e[0m"
+    read -k 1 reply
+    echo  # Move to a new line after the input
+    if [[ "$reply" =~ ^[Yy]$ ]]
+    then
+        (eval "$last_command" > /tmp/command_output.txt 2>&1) & 
+        local cmd_pid=$!
+        spinner $cmd_pid
+        wait $cmd_pid
+        local command_output=$(cat /tmp/command_output.txt)
+        if [[ -z "$command_output" ]]; then
+            echo "The command did not produce any output."
+            return
+        fi
+        local selected_output=$(echo "$command_output" | tr ' ' '\n' | grep -v '^\s*$' | fzf --height 40% --reverse)
+        if [[ -n $selected_output ]]; then
+            LBUFFER+="$selected_output "
+        fi
+        zle reset-prompt
+        zle -R
+    else
+        echo "Command execution canceled."
+    fi
+}
+zle -N fzf-insert-last-command-output
+bindkey '^O' fzf-insert-last-command-output
+

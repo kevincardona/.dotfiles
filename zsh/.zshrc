@@ -10,6 +10,9 @@ export PATH="$BUN_INSTALL/bin:$PATH"
 export PATH="/Users/$USER/.rd/bin:$PATH"
 export BUN_INSTALL="$HOME/.bun"
 
+# Misc Environment Variables
+export ASDF_NODEJS_LEGACY_FILE_DYNAMIC_STRATEGY=latest_available
+
 # Plugins
 plugins=(
   git
@@ -37,7 +40,6 @@ source ~/.zsh_functions
 
 # Work Configuration
 if [[ -f ~/.zsh_work ]]; then
-    echo "Have fun working!"
     source ~/.zsh_work
 fi
 

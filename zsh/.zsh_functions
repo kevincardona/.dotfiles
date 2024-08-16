@@ -1,3 +1,37 @@
+sw() {
+    local website=$1
+    local query="${@:2}"
+    local encoded_query=$(jq -nr --arg query "$query" '$query | @uri')
+    declare -A url_templates=(
+        ["yt"]="https://www.youtube.com/results?search_query=${encoded_query}"
+        ["gh"]="https://github.com/search?q=owner%3Akevincardona%20${encoded_query}"
+        ["conf"]="https://vailsys.atlassian.net/wiki/search?text=${encoded_query}"
+        ["jira"]="https://vailsys.atlassian.net/issues/?smartQueryDisabled=true&wildcardAdded=true&jql=text%20%7E%20%22${encoded_query}%22"
+        ["ticket"]="https://vailsys.atlassian.net/browse/${encoded_query}"
+        ["j"]="https://www.jira.com/browse/${encoded_query}"
+        ["d"]="https://duckduckgo.com/?q=${encoded_query}"
+        ["g"]="https://www.google.com/search?q=${encoded_query}"
+        ["n"]="https://www.netflix.com/search?q=${encoded_query}"
+        ["h"]="https://www.hulu.com/search?q=${encoded_query}"
+        ["c"]="https://www.crunchyroll.com/search?q=${encoded_query}"
+    )
+    local url_template=${url_templates[$website]}
+    if [[ -z "$url_template" ]]; then
+        echo "Website identifier '$website' is not recognized."
+        return 1
+    fi
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        xdg-open "$url_template"
+    elif [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
+        cmd.exe /c start "" "$url_template"
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+        open "$url_template"
+    else
+        echo "Unsupported operating system: $OSTYPE"
+        return 1
+    fi
+}
+
 ccd() {
     local selected=$(find ~ ~/projects ~/.config ~/.dotfiles ~/work ~/work/number-provisioning ~/work/valert ~/work/telekit ~/work/racc ~/personal ~/personal/scratchpad -mindepth 1 -maxdepth 1 -type d | fzf)
     if [[ -z $selected ]]; then

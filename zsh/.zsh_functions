@@ -66,16 +66,6 @@ cds() {
   fi
 }
 
-menubar() {
-    currentState=$(defaults read NSGlobalDomain _HIHideMenuBar)
-    if [ "$currentState" -eq 1 ]; then
-        defaults write NSGlobalDomain _HIHideMenuBar -bool false
-    else
-        defaults write NSGlobalDomain _HIHideMenuBar -bool true
-    fi
-    killall Finder
-}
-
 lazy_load() {
     local -a names
     if [[ -n "$ZSH_VERSION" ]]; then

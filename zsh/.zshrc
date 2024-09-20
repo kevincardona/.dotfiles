@@ -55,3 +55,11 @@ if [ -z "$VSCODE_TERMINAL" ]; then
   export ZSH_TMUX_AUTOSTART=true
 fi
 
+if [ -z "$TMUX" ] && [ "$TERM" = "xterm-kitty" ] && [ "$ZSH_TMUX_AUTOSTART" ]; then
+  tmux attach || exec tmux new-session && exit;
+fi
+
+
+### MANAGED BY RANCHER DESKTOP START (DO NOT EDIT)
+export PATH="/Users/kcardona/.rd/bin:$PATH"
+### MANAGED BY RANCHER DESKTOP END (DO NOT EDIT)

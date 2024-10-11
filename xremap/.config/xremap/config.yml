@@ -1,0 +1,93 @@
+keymap:
+  # Map Super + C to actual Copy action
+  - name: "Super + C -> Copy"
+    remap:
+      Super_L-C: C-C
+
+  # Map Super + V to actual Paste action
+  - name: "Super + V -> Paste"
+    remap:
+      Super_L-V: C-V
+
+  # Map Super + A to Ctrl + A (Select All)
+  - name: "Super + A -> Ctrl + A"
+    remap:
+      Super_L-A: C-A
+
+  # Map Super + F to Ctrl + F (Find)
+  - name: "Super + F -> Ctrl + F"
+    remap:
+      Super_L-F: C-F
+
+  # Map Super + W to Ctrl + W (Close Tab/Window)
+  - name: "Super + W -> Ctrl + W"
+    remap:
+      Super_L-W: C-W
+
+  # Map Super + Q to Ctrl + Q (Close App)
+  - name: "Super + Q -> Ctrl + Q"
+    remap:
+      Super_L-Q: C-Q
+
+  # Map Super + N to Ctrl + N (New Tab/Window)
+  - name: "Super + N -> Ctrl + N"
+    remap:
+      Super_L-N: C-N
+
+  # Map Super + Tab to Alt + Tab (App Switching)
+  - name: "Super + Tab -> Alt + Tab"
+    remap:
+      Super_L-Tab: Alt-Tab
+
+  # This seems to break mouse
+  - name: "Super + l"
+    remap:
+      Super_L-L: C-L
+
+  - name: "Remap Cmd + ` and Cmd + Escape to Alt + `"
+    remap:
+      # Remap Cmd + ` to Alt + `
+      SUPER-Grave: Alt-Grave
+      # Remap Cmd + Escape to Alt + `
+      SUPER-Esc: Alt-Grave
+
+  # Super + Alt + Slash (/) -> Launch Kitty terminal
+  - name: "Super + Alt + Slash -> Launch Kitty"
+    remap:
+      Super_L-Alt-Slash:
+        launch: ["kitty"]
+
+  # WINDOW MANAGEMENT
+  - name: "Remap Cmd + Alt + H/J/K/L to Win + Arrow Keys"
+    remap:
+      # Cmd (Super) + Alt + H -> Win (Super) + Left
+      SUPER-M-H: SUPER-Left
+      # Cmd (Super) + Alt + J -> Win (Super) + Down
+      SUPER-M-J: SUPER-Down
+      # Cmd (Super) + Alt + K -> Win (Super) + Up
+      SUPER-M-K: SUPER-Up
+      # Cmd (Super) + Alt + L -> Win (Super) + Right
+      SUPER-M-L: SUPER-Right
+
+  - name: "Remap Alt + H/J/K/L to Arrow Keys"
+    remap:
+      # Alt + H -> Left Arrow
+      M-H: Left
+      # Alt + J -> Down Arrow
+      M-J: Down
+      # Alt + K -> Up Arrow
+      M-K: Up
+      # Alt + L -> Right Arrow
+      M-L: Right
+  
+  # - name: "Remap Cmd + Tab to Alt + Tab"
+  #   remap:
+  #     SUPER-Tab: Alt-Tab
+
+  # Super + Alt + Backspace -> Launch Zen Browser
+  - name: "Super + Alt + Backspace -> Launch Zen Browser"
+    remap:
+      Super_L-Alt-Backspace:
+        launch: ["zen-browser"]
+
+

@@ -29,33 +29,49 @@ keymap:
     remap:
       Super_L-Q: C-Q
 
-  # Map Super + N to Ctrl + N (New Tab/Window)
+  # Map Super + N to Ctrl + N (Window)
   - name: "Super + N -> Ctrl + N"
     remap:
       Super_L-N: C-N
 
-  # Map Super + Tab to Alt + Tab (App Switching)
-  - name: "Super + Tab -> Alt + Tab"
+  # Map Super + N to Ctrl + N (New Tab)
+  - name: "Super + T -> Ctrl + T"
     remap:
-      Super_L-Tab: Alt-Tab
+      Super_L-T: C-T
 
-  # This seems to break mouse
+  - name: "Cmd + 1-9 to Ctrl + 1-9"
+    remap:
+      Super_L-1: C-1
+      Super_L-2: C-2
+      Super_L-3: C-3
+      Super_L-4: C-4
+      Super_L-5: C-5
+      Super_L-6: C-6
+      Super_L-7: C-7
+      Super_L-8: C-8
+      Super_L-9: C-9  
+
+# Map Super + Tab to Alt + Tab (App Switching)
+  # - name: "Super + Tab -> Alt + Tab"
+  #   remap:
+  #     Super_L-Tab: Alt-Tab
+
   - name: "Super + l"
     remap:
       Super_L-L: C-L
 
-  - name: "Remap Cmd + ` and Cmd + Escape to Alt + `"
-    remap:
+  # - name: "Remap Cmd + ` and Cmd + Escape to Alt + `"
+    # remap:
       # Remap Cmd + ` to Alt + `
-      SUPER-Grave: Alt-Grave
+      # SUPER-Grave: Alt-Grave
       # Remap Cmd + Escape to Alt + `
-      SUPER-Esc: Alt-Grave
+      # SUPER-Esc: Alt-Grave
 
   # Super + Alt + Slash (/) -> Launch Kitty terminal
-  - name: "Super + Alt + Slash -> Launch Kitty"
-    remap:
-      Super_L-Alt-Slash:
-        launch: ["kitty"]
+  # - name: "Super + Alt + Slash -> Launch Kitty"
+  #   remap:
+  #     Super_L-Alt-Slash:
+  #       launch: ["kitty"]
 
   # WINDOW MANAGEMENT
   - name: "Remap Cmd + Alt + H/J/K/L to Win + Arrow Keys"
@@ -84,10 +100,10 @@ keymap:
   #   remap:
   #     SUPER-Tab: Alt-Tab
 
-  # Super + Alt + Backspace -> Launch Zen Browser
-  - name: "Super + Alt + Backspace -> Launch Zen Browser"
-    remap:
-      Super_L-Alt-Backspace:
-        launch: ["zen-browser"]
+  # Super + Alt + Backspace -> Launch Browser
+  # - name: "Super + Alt + Backspace -> Launch Browser"
+  #   remap:
+  #     Super_L-Alt-Backspace:
+  #       launch: ["chromium"]
 
 

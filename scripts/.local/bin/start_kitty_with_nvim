@@ -1,0 +1,23 @@
+#!/bin/bash
+
+NVIM_PIPE="/tmp/godot.pipe"
+
+send_file_to_nvim() {
+    if [ -e "$NVIM_PIPE" ]; then
+        nvim --server "$NVIM_PIPE" --remote "$1"
+    else
+        echo "Error: No nvim instance is running with the server pipe at $NVIM_PIPE"
+    fi
+}
+
+# if [ -e "$NVIM_PIPE" ]; then
+#     send_file_to_nvim "$1"
+# else
+    if kitty @ ls | grep -q '"is_focused": true'; then
+        kitty @ send-text -m primary "nvim --listen $NVIM_PIPE $1\n"
+        kitty @ focus-window
+    else
+        kitty -e nvim --listen "$NVIM_PIPE" "$1"
+    fi
+# fi
+

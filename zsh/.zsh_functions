@@ -121,6 +121,19 @@ spinner() {
     printf "    \b\b\b\b"
 }
 
+gw() {
+    root=$(git rev-parse --show-toplevel 2>/dev/null)
+    if [[ -z "$root" ]]; then
+        echo "Not in a git repository"
+        return 1
+    fi
+
+    worktree=$(git worktree list | fzf --height 40% --reverse | awk '{print $1}')
+    if [[ -n "$worktree" ]]; then
+        cd "$worktree"
+    fi
+}
+
 fzf-insert-last-command-output() {
     local last_command=$(fc -ln -1 | head -n 1)
     echo -e "\n\e[33mAre you sure you want to rerun '$last_command'? (y/n): \e[0m"

@@ -1,0 +1,10 @@
+# /etc/systemd/user/xremap.service
+[Unit]
+Description=xremap
+
+[Service]
+Restart=always
+ExecStart=/home/kevincardona/.cargo/bin/xremap /home/kevincardona/.config/xremap/config.yml --watch
+
+[Install]
+WantedBy=default.target

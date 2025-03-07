@@ -14,7 +14,7 @@
                                         "optional": []
                                     }
                                 },
-                                "to": [{ "shell_command": "open -a 'Zen Browser'" }],
+                                "to": [{ "shell_command": "open -a 'Arc'" }],
                                 "type": "basic"
                             },
                             {
@@ -26,6 +26,17 @@
                                     }
                                 },
                                 "to": [{ "shell_command": "open -a DBeaver" }],
+                                "type": "basic"
+                            },
+                            {
+                                "from": {
+                                    "key_code": "c",
+                                    "modifiers": {
+                                        "mandatory": ["left_option", "left_command"],
+                                        "optional": []
+                                    }
+                                },
+                                "to": [{ "shell_command": "open -a 'Visual Studio Code'" }],
                                 "type": "basic"
                             },
                             {
@@ -476,6 +487,10 @@
                         {
                             "from": { "apple_vendor_top_case_key_code": "keyboard_fn" },
                             "to": [{ "key_code": "left_control" }]
+                        },
+                        {
+                            "from": { "key_code": "caps_lock" },
+                            "to": [{ "key_code": "vk_none" }]
                         }
                     ]
                 }

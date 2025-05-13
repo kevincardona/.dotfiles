@@ -46,9 +46,11 @@ if [[ -z $TMUX ]] && [[ -z $tmux_running ]]; then
     exit 0
 fi
 
-# If the session doesn't already exist, create it
+# Create the session with a shell that runs `cd` then attaches
 if ! tmux has-session -t="$selected_name" 2> /dev/null; then
-    tmux new-session -ds "$selected_name" -c "$selected"
+    tmux new-session -ds "$selected_name"
+    tmux send-keys -t "$selected_name" "cd \"$selected\"" C-m
+    tmux send-keys -t "$selected_name" "clear" C-m
 fi
 
 # Switch to the selected session

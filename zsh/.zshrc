@@ -6,6 +6,7 @@ export JAVA_HOME=/opt/homebrew/opt/openjdk@11
 # Path Configurations
 export PATH=/opt/homebrew/bin:$PATH
 export PATH="$HOME/.config/bin/.local/scripts:$PATH"
+export PATH="$HOME/.cargo/bin:$PATH"
 export PATH="$BUN_INSTALL/bin:$PATH"
 export PATH="/Users/$USER/.rd/bin:$PATH"
 export BUN_INSTALL="$HOME/.bun"

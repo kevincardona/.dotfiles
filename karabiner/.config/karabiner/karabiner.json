@@ -14,7 +14,7 @@
                                         "optional": []
                                     }
                                 },
-                                "to": [{ "shell_command": "open -a 'Zen Browser'" }],
+                                "to": [{ "shell_command": "open -a 'Firefox'" }],
                                 "type": "basic"
                             },
                             {
@@ -26,6 +26,17 @@
                                     }
                                 },
                                 "to": [{ "shell_command": "open -a DBeaver" }],
+                                "type": "basic"
+                            },
+                            {
+                                "from": {
+                                    "key_code": "m",
+                                    "modifiers": {
+                                        "mandatory": ["left_shift", "left_command"],
+                                        "optional": []
+                                    }
+                                },
+                                "to": [{ "shell_command": "open -a Messages" }],
                                 "type": "basic"
                             },
                             {
@@ -91,7 +102,7 @@
                                         "optional": []
                                     }
                                 },
-                                "to": [{ "shell_command": "open -a 'Visual Studio Code'" }],
+                                "to": [{ "shell_command": "open -a 'Cursor'" }],
                                 "type": "basic"
                             }
                         ]

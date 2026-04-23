@@ -1,5 +1,7 @@
 alias darkmode="osascript -e 'tell app \"System Events\" to tell appearance preferences to set dark mode to not dark mode'"
 alias mb="~/.local/bin/menubar"
+alias ci="~/.local/bin/glab-pipelines"
+alias cia="~/.local/bin/glab-pipelines --all"
 alias python="python3"
 alias vim="nvim"
 alias clear="clear && tmux clear-history"

@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 
-# Directories to search for sessions
+# Directories to search for sessions. Keep this list portable across machines --
+# put host-specific paths (external drives, work-only checkouts) in the local
+# paths file instead. Missing entries are skipped, so it is safe to list a path
+# that only exists on some machines.
 declare -a SEARCH_PATHS=(
     "$HOME"
     "$HOME/projects"
     "$HOME/.config"
     "$HOME/.dotfiles"
+    "$HOME/nix-dev"
     "$HOME/work"
     "$HOME/work/valert"
     "$HOME/work/telekit"
@@ -15,7 +19,26 @@ declare -a SEARCH_PATHS=(
     "$HOME/personal/scratchpad"
     "$HOME/personal/godot-games"
     "$HOME/personal/rust-learn"
+    "$HOME/Documents/GitHub"
 )
+
+# Extra machine-specific paths, one per line ('#' comments and '~' both allowed)
+LOCAL_PATHS_FILE="${TMUX_SESSIONIZER_PATHS:-$HOME/.config/tmux-sessionizer/paths}"
+if [[ -f $LOCAL_PATHS_FILE ]]; then
+    while IFS= read -r line || [[ -n $line ]]; do
+        line="${line%%#*}"
+        line="${line#"${line%%[![:space:]]*}"}"
+        line="${line%"${line##*[![:space:]]}"}"
+        [[ -z $line ]] && continue
+        SEARCH_PATHS+=("${line/#\~/$HOME}")
+    done < "$LOCAL_PATHS_FILE"
+fi
+
+# Drop anything that isn't present on this machine (unmounted drives, etc.)
+declare -a EXISTING_PATHS=()
+for path in "${SEARCH_PATHS[@]}"; do
+    [[ -d $path ]] && EXISTING_PATHS+=("$path")
+done
 
 usage() {
     echo "Usage: $0 [directory]"
@@ -25,8 +48,11 @@ usage() {
 # Check if exactly one argument is provided, if not use fzf to select directory
 if [[ $# -eq 1 ]]; then
     selected=$1
+elif [[ ${#EXISTING_PATHS[@]} -eq 0 ]]; then
+    echo "tmux-sessionizer: no search paths exist on this machine" >&2
+    exit 1
 else
-    selected=$(find "${SEARCH_PATHS[@]}" -mindepth 1 -maxdepth 1 -type d | fzf)
+    selected=$(find "${EXISTING_PATHS[@]}" -mindepth 1 -maxdepth 1 -type d | fzf)
 fi
 
 # Exit if no directory was selected
@@ -46,13 +72,15 @@ if [[ -z $TMUX ]] && [[ -z $tmux_running ]]; then
     exit 0
 fi
 
-# Create the session with a shell that runs `cd` then attaches
+# Create the session rooted at the selected directory
 if ! tmux has-session -t="$selected_name" 2> /dev/null; then
-    tmux new-session -ds "$selected_name"
-    tmux send-keys -t "$selected_name" "cd \"$selected\"" C-m
-    tmux send-keys -t "$selected_name" "clear" C-m
+    tmux new-session -ds "$selected_name" -c "$selected"
 fi
 
-# Switch to the selected session
-tmux switch-client -t "$selected_name"
+# Attach or switch to the selected session
+if [[ -z $TMUX ]]; then
+    tmux attach-session -t "$selected_name"
+else
+    tmux switch-client -t "$selected_name"
+fi
 

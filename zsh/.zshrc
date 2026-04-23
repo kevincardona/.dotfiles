@@ -62,7 +62,26 @@ if [ -z "$TMUX" ] && [ "$TERM" = "xterm-kitty" ] && [ "$ZSH_TMUX_AUTOSTART" ]; t
   tmux attach || exec tmux new-session && exit;
 fi
 
+PATH="/Users/kcardona/perl5/bin${PATH:+:${PATH}}"; export PATH;
+PERL5LIB="/Users/kcardona/perl5/lib/perl5${PERL5LIB:+:${PERL5LIB}}"; export PERL5LIB;
+PERL_LOCAL_LIB_ROOT="/Users/kcardona/perl5${PERL_LOCAL_LIB_ROOT:+:${PERL_LOCAL_LIB_ROOT}}"; export PERL_LOCAL_LIB_ROOT;
+PERL_MB_OPT="--install_base \"/Users/kcardona/perl5\""; export PERL_MB_OPT;
+PERL_MM_OPT="INSTALL_BASE=/Users/kcardona/perl5"; export PERL_MM_OPT;
+
+
+export PUID=$(id -u)
+export PGID=$(id -g)
+export TZ="America/Denver"
+export DOCKER_SUBNET="172.20.0.0/24"
+export DOCKER_GATEWAY="172.20.0.1"
+
 
 ### MANAGED BY RANCHER DESKTOP START (DO NOT EDIT)
 export PATH="/Users/kcardona/.rd/bin:$PATH"
 ### MANAGED BY RANCHER DESKTOP END (DO NOT EDIT)
+
+# Added by syseng-k8s-tools installer
+export PATH="/usr/local/bin:$PATH"
+export PATH="$HOME/.local/bin:$PATH"
+
+eval "$(mise activate zsh)"

@@ -32,6 +32,81 @@ sw() {
     fi
 }
 
+check_deployments_by_name() {
+  local search_name=$1
+  local namespace="number-provisioning-beta"
+  local contexts=("sf-test" "au-test")
+
+  for context in "${contexts[@]}"; do
+    echo "🔍 Checking in context: $context"
+    kubectl --context="$context" -n "$namespace" get deployments \
+      --no-headers \
+      | grep "$search_name" \
+      || echo "No deployments found matching '$search_name' in $context"
+    echo "--------------------------------------------"
+  done
+}
+
+kclog() {
+  local container_name=""
+  local namespace="number-provisioning-beta"  # default
+  local contexts=("sf-test" "au-test")
+  local pod_name_fragment=""
+
+  # Parse flags
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -c|--container)
+        container_name="$2"
+        shift 2
+        ;;
+      -n|--namespace)
+        namespace="$2"
+        shift 2
+        ;;
+      *)
+        pod_name_fragment="$1"
+        shift
+        ;;
+    esac
+  done
+
+  if [[ -z "$pod_name_fragment" ]]; then
+    echo "Usage: kclog [-n namespace] [-c container_name] <pod_name_fragment>"
+    return 1
+  fi
+
+  for context in "${contexts[@]}"; do
+    echo -e "\n🔍 Context: $context (namespace: $namespace)"
+
+    pods=$(kubectl --context="$context" -n "$namespace" get pods --no-headers | grep "$pod_name_fragment" | awk '{print $1}')
+
+    if [ -z "$pods" ]; then
+      echo "No matching pods found in $context"
+      continue
+    fi
+
+    echo "$pods" | while read -r pod; do
+      echo -e "\n📦 Logs for pod: $pod"
+
+      if [[ -n "$container_name" ]]; then
+        echo -e "\n🧩 Container: $container_name"
+        kubectl --context="$context" -n "$namespace" logs "$pod" -c "$container_name" --tail=100
+      else
+        containers=$(kubectl --context="$context" -n "$namespace" get pod "$pod" -o jsonpath='{.spec.containers[*].name}')
+        IFS=' ' read -r -a container_array <<< "$containers"
+
+        for container in "${container_array[@]}"; do
+          echo -e "\n🧩 Container: $container"
+          kubectl --context="$context" -n "$namespace" logs "$pod" -c "$container" --tail=100
+        done
+      fi
+
+      echo "----------------------------------------"
+    done
+  done
+}
+
 ccd() {
     local selected=$(find ~ ~/projects ~/.config ~/.dotfiles ~/work ~/work/number-provisioning ~/work/valert ~/work/telekit ~/work/racc ~/personal ~/personal/scratchpad -mindepth 1 -maxdepth 1 -type d | fzf)
     if [[ -z $selected ]]; then
@@ -162,4 +237,113 @@ fzf-insert-last-command-output() {
 }
 zle -N fzf-insert-last-command-output
 bindkey '^O' fzf-insert-last-command-output
+
+capitalize_files() {
+    find . -type f | while read -r file; do
+        dir=$(dirname "$file")
+        base=$(basename "$file")
+
+        # Skip files starting with "index" (case insensitive)
+        if [[ "$base" =~ ^[Ii][Nn][Dd][Ee][Xx] ]]; then
+            continue
+        fi
+
+        # Skip files ending in .ts (but allow .tsx, .jsx)
+        if [[ "$base" == *.ts || "$base" == *.js ]]; then
+            continue
+        fi
+
+        # Capitalize only the first letter
+        new_name=$(echo "$base" | awk '{print toupper(substr($0,1,1)) substr($0,2)}')
+
+        # Rename only if the name has changed
+        if [[ "$base" != "$new_name" ]]; then
+            mv "$file" "$dir/$new_name"
+            echo "Renamed: $file -> $dir/$new_name"
+        fi
+    done
+}
+
+function gems() {
+  local ruby_path
+  ruby_path=$(which ruby)
+
+  if [[ ! -x "$ruby_path" ]]; then
+    echo "Ruby not found. Are you using asdf with Ruby installed?" >&2
+    return 1
+  fi
+
+  local gem_dir
+  gem_dir=$(ruby -e 'puts Gem.default_dir')
+
+  if [[ -d "$gem_dir" ]]; then
+    cd "$gem_dir" || return 1
+  else
+    echo "Gem directory not found: $gem_dir" >&2
+    return 1
+  fi
+}
+
+# Ghost-add a file to Git: track it initially, then ignore changes
+ghost_add() {
+  local file="$1"
+
+  if [ -z "$file" ]; then
+    echo "Usage: ghost_add <file>"
+    return 1
+  fi
+
+  # Stage the file with --intent-to-add if it's new
+  git add --intent-to-add "$file" -f
+
+  # Tell Git to assume it's unchanged from now on
+  git update-index --assume-unchanged "$file"
+
+  echo "Ghost-added $file: tracked but future changes will be ignored."
+}
+
+# Toggle between light and dark themes for tmux, kitty, and zsh
+toggle_theme() {
+  local theme_file="$HOME/.theme_mode"
+  local current_theme="dark"
+  
+  # Read current theme if file exists
+  if [[ -f "$theme_file" ]]; then
+    current_theme=$(cat "$theme_file")
+  fi
+  
+  # Toggle theme
+  if [[ "$current_theme" == "dark" ]]; then
+    new_theme="light"
+  else
+    new_theme="dark"
+  fi
+  
+  # Save new theme
+  echo "$new_theme" > "$theme_file"
+  
+  # Update kitty theme
+  if [[ -n "$KITTY_WINDOW_ID" ]]; then
+    kitty @ set-colors --all --configured ~/.dotfiles/kitty/.config/kitty/themes/${new_theme}.conf
+  fi
+  
+  # Update tmux theme
+  if [[ -n "$TMUX" ]]; then
+    tmux source-file ~/.dotfiles/tmux/.tmux.conf
+  fi
+  
+  echo "Switched to $new_theme theme"
+}
+
+# Toggle lid sleep to ignore a broken sensor
+sleepy() {
+  if [[ $(pmset -g | grep disablesleep) == *0* ]]; then
+    sudo pmset -a disablesleep 1
+    echo "Lid Sensor Ignored: Your Mac will stay awake when closed."
+  else
+    sudo pmset -a disablesleep 0
+    echo "Lid Sensor Active: Your Mac will sleep normally."
+  fi
+}
+
 

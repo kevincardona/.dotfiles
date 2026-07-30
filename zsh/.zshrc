@@ -1,5 +1,9 @@
 # General Settings
 export ZSH="$HOME/.oh-my-zsh"
+
+# Skip oh-my-zsh's slow per-shell completion-security audit (compaudit).
+# Biggest single zsh-startup win (~40% faster); safe if you trust your comp dirs.
+ZSH_DISABLE_COMPFIX=true
 export EDITOR='nvim'
 export JAVA_HOME=/opt/homebrew/opt/openjdk@11
 
@@ -11,21 +15,13 @@ export PATH="$BUN_INSTALL/bin:$PATH"
 export PATH="/Users/$USER/.rd/bin:$PATH"
 export BUN_INSTALL="$HOME/.bun"
 
-# Misc Environment Variables
-export ASDF_NODEJS_LEGACY_FILE_DYNAMIC_STRATEGY=latest_available
-
 # Plugins
 plugins=(
   git
-  asdf
   zsh-autosuggestions
   zsh-completions
   zsh-syntax-highlighting
 )
-
-zstyle ':omz:plugins:zsh-autosuggestions' lazy yes
-zstyle ':omz:plugins:zsh-completions' lazy yes
-zstyle ':omz:plugins:zsh-syntax-highlighting' lazy yes
 
 # Theme
 ZSH_THEME="af-magic"
@@ -53,6 +49,14 @@ source ~/.zsh_aliases
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
 [ -s "/Users/$USER/.bun/_bun" ] && source "/Users/$USER/.bun/_bun"
 
+# zoxide — frecency-ranked cd; also powers sesh's zoxide session results
+command -v zoxide >/dev/null && eval "$(zoxide init zsh)"
+
+# television shell integration: completions + Ctrl-T (smart autocomplete) and
+# Ctrl-R (history) picker. NOTE: this rebinds Ctrl-T / Ctrl-R from fzf to tv.
+# Prefer fzf's bindings? Just comment out the next line (fzf is still sourced above).
+command -v tv >/dev/null && eval "$(tv init zsh)"
+
 # Conditional Settings
 if [ -z "$VSCODE_TERMINAL" ]; then
   export ZSH_TMUX_AUTOSTART=true
@@ -62,11 +66,15 @@ if [ -z "$TMUX" ] && [ "$TERM" = "xterm-kitty" ] && [ "$ZSH_TMUX_AUTOSTART" ]; t
   tmux attach || exec tmux new-session && exit;
 fi
 
-PATH="/Users/kcardona/perl5/bin${PATH:+:${PATH}}"; export PATH;
-PERL5LIB="/Users/kcardona/perl5/lib/perl5${PERL5LIB:+:${PERL5LIB}}"; export PERL5LIB;
-PERL_LOCAL_LIB_ROOT="/Users/kcardona/perl5${PERL_LOCAL_LIB_ROOT:+:${PERL_LOCAL_LIB_ROOT}}"; export PERL_LOCAL_LIB_ROOT;
-PERL_MB_OPT="--install_base \"/Users/kcardona/perl5\""; export PERL_MB_OPT;
-PERL_MM_OPT="INSTALL_BASE=/Users/kcardona/perl5"; export PERL_MM_OPT;
+# Perl local::lib — was hardcoded to /Users/kcardona; now portable + guarded so it
+# only loads where ~/perl5 actually exists (no dead PATH entries on other machines).
+if [ -d "$HOME/perl5" ]; then
+  PATH="$HOME/perl5/bin${PATH:+:${PATH}}"; export PATH;
+  PERL5LIB="$HOME/perl5/lib/perl5${PERL5LIB:+:${PERL5LIB}}"; export PERL5LIB;
+  PERL_LOCAL_LIB_ROOT="$HOME/perl5${PERL_LOCAL_LIB_ROOT:+:${PERL_LOCAL_LIB_ROOT}}"; export PERL_LOCAL_LIB_ROOT;
+  PERL_MB_OPT="--install_base \"$HOME/perl5\""; export PERL_MB_OPT;
+  PERL_MM_OPT="INSTALL_BASE=$HOME/perl5"; export PERL_MM_OPT;
+fi
 
 
 export PUID=$(id -u)

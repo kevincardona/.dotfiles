@@ -1,3 +1,9 @@
 work
 
 karabiner/.config/karabiner/automatic_backups
+
+# Tool runtime data (nvim plugins, mise, gem, NuGet, opencode, …) that leaked into
+# the scripts stow package. Regenerable, never versioned. Only scripts/.local/bin
+# is meant to be tracked.
+scripts/.local/share/
+scripts/.local/state/

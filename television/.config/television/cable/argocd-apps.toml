@@ -1,0 +1,41 @@
+[metadata]
+name = "argocd-apps"
+description = """
+ArgoCD applications. Requires you to be logged in first:
+
+    argocd login <server>       (add --sso / --grpc-web as your org needs)
+
+  ctrl-s  sync app     ctrl-d  diff app
+  ctrl-w  hard refresh ctrl-r  reload list
+"""
+requirements = ["argocd"]
+
+[source]
+command = "argocd app list -o name 2>/dev/null"
+
+[preview]
+command = "argocd app get {} 2>/dev/null || echo 'Not logged in. Run:  argocd login <server>'"
+
+[ui]
+layout = "portrait"
+preview_panel = { size = 62 }
+
+[keybindings]
+ctrl-s = "actions:sync"
+ctrl-d = "actions:diff"
+ctrl-w = "actions:refresh"
+
+[actions.sync]
+description = "Sync application"
+command = "argocd app sync {}"
+mode = "execute"
+
+[actions.diff]
+description = "Diff application against live state"
+command = "argocd app diff {}"
+mode = "execute"
+
+[actions.refresh]
+description = "Hard refresh application"
+command = "argocd app get {} --hard-refresh"
+mode = "execute"

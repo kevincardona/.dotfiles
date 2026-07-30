@@ -329,7 +329,7 @@ toggle_theme() {
   
   # Update tmux theme
   if [[ -n "$TMUX" ]]; then
-    tmux source-file ~/.dotfiles/tmux/.tmux.conf
+    tmux source-file ~/.config/tmux/tmux.conf
   fi
   
   echo "Switched to $new_theme theme"

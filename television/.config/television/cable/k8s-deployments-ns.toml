@@ -1,0 +1,52 @@
+[metadata]
+name = "k8s-deployments-ns"
+description = """
+Deployments across the namespaces listed in ~/.config/television/k8s-targets
+(one "<context> <namespace>" per line; '#' comments allowed).
+
+Never uses --all-namespaces.
+
+  ctrl-r  rollout restart    ctrl-l  follow logs
+  ctrl-d  delete             ctrl-y  reload list
+"""
+requirements = ["kubectl"]
+
+[source]
+# Emits TAB-separated:  context  namespace  name  ready
+command = '''
+while read -r ctx ns _; do
+  case "$ctx" in ''|\#*) continue ;; esac
+  [ -z "$ns" ] && continue
+  kubectl --context="$ctx" -n "$ns" get deployments --no-headers 2>/dev/null \
+    | awk -v c="$ctx" -v n="$ns" '{print c"\t"n"\t"$1"\t"$2}'
+done < "${TV_K8S_TARGETS:-$HOME/.config/television/k8s-targets}"
+'''
+display = "{split:\t:2}   [{split:\t:0}/{split:\t:1}]  ready {split:\t:3}"
+output = "{split:\t:2}"
+
+[preview]
+command = "kubectl --context={split:\t:0} -n {split:\t:1} describe deployment {split:\t:2}"
+
+[ui]
+layout = "portrait"
+preview_panel = { size = 65 }
+
+[keybindings]
+ctrl-r = "actions:restart"
+ctrl-l = "actions:logs"
+ctrl-d = "actions:delete"
+
+[actions.restart]
+description = "Rollout restart"
+command = "kubectl --context={split:\t:0} -n {split:\t:1} rollout restart deployment {split:\t:2}"
+mode = "execute"
+
+[actions.logs]
+description = "Follow logs"
+command = "kubectl --context={split:\t:0} -n {split:\t:1} logs -f deployment/{split:\t:2}"
+mode = "execute"
+
+[actions.delete]
+description = "Delete deployment"
+command = "kubectl --context={split:\t:0} -n {split:\t:1} delete deployment {split:\t:2}"
+mode = "execute"

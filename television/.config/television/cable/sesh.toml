@@ -1,0 +1,20 @@
+[metadata]
+name = "sesh"
+description = """
+Smart tmux session switcher (sesh + zoxide + tmux + configured sessions).
+
+Enter prints the chosen target to stdout; the tmux popup (prefix + f) wraps it
+in `sesh connect`, so pressing enter jumps to / creates that session.
+"""
+requirements = ["sesh"]
+
+[source]
+command = "sesh list --tmux --config --zoxide --hide-duplicates"
+output = "{}"
+
+[preview]
+command = "sesh preview {} 2>/dev/null || ls -la {} 2>/dev/null || true"
+
+[ui]
+layout = "portrait"
+preview_panel = { size = 55 }

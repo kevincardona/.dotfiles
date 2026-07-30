@@ -1,0 +1,3 @@
+# themes/ is sourced directly from the repo (~/.dotfiles/tmux/themes/...) by
+# tmux.conf, so don't symlink it into ~ (avoids a stray ~/themes symlink).
+themes

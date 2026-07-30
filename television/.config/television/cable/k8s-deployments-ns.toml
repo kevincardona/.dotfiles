@@ -1,52 +1,61 @@
 [metadata]
 name = "k8s-deployments-ns"
 description = """
-Deployments across the namespaces listed in ~/.config/television/k8s-targets
-(one "<context> <namespace>" per line; '#' comments allowed).
+Deployments across the namespaces in ~/.config/television/k8s-targets
+(one "<context> <namespace>" per line). Never uses --all-namespaces.
 
-Never uses --all-namespaces.
-
-  ctrl-r  rollout restart    ctrl-l  follow logs
-  ctrl-d  delete             ctrl-y  reload list
+Read-focused. Press ctrl-x for the full list.
+  ctrl-l  follow logs      ctrl-y  view yaml
+  ctrl-x  more: rollout status / history, restart (the only write action)
 """
 requirements = ["kubectl"]
 
 [source]
-# Emits TAB-separated:  context  namespace  name  ready
+# Flags AFTER the verb so wrapped/plugin kubectls accept them.
+# Emits TAB-separated:  context  namespace  name  ready  age
 command = '''
 while read -r ctx ns _; do
   case "$ctx" in ''|\#*) continue ;; esac
   [ -z "$ns" ] && continue
-  kubectl --context="$ctx" -n "$ns" get deployments --no-headers 2>/dev/null \
-    | awk -v c="$ctx" -v n="$ns" '{print c"\t"n"\t"$1"\t"$2}'
+  kubectl get deployments --no-headers -n "$ns" --context "$ctx" 2>/dev/null \
+    | awk -v c="$ctx" -v n="$ns" '{print c"\t"n"\t"$1"\t"$2"\t"$5}'
 done < "${TV_K8S_TARGETS:-$HOME/.config/television/k8s-targets}"
 '''
-display = "{split:\t:2}   [{split:\t:0}/{split:\t:1}]  ready {split:\t:3}"
+display = "{split:\t:2}   [{split:\t:0}/{split:\t:1}]  ready {split:\t:3}  {split:\t:4}"
 output = "{split:\t:2}"
 
 [preview]
-command = "kubectl --context={split:\t:0} -n {split:\t:1} describe deployment {split:\t:2}"
+command = "kubectl describe deployment {split:\t:2} -n {split:\t:1} --context {split:\t:0}"
 
 [ui]
 layout = "portrait"
 preview_panel = { size = 65 }
 
 [keybindings]
-ctrl-r = "actions:restart"
 ctrl-l = "actions:logs"
-ctrl-d = "actions:delete"
-
-[actions.restart]
-description = "Rollout restart"
-command = "kubectl --context={split:\t:0} -n {split:\t:1} rollout restart deployment {split:\t:2}"
-mode = "execute"
+ctrl-y = "actions:yaml"
 
 [actions.logs]
-description = "Follow logs"
-command = "kubectl --context={split:\t:0} -n {split:\t:1} logs -f deployment/{split:\t:2}"
+description = "Follow logs (all containers)"
+command = "kubectl logs -f deployment/{split:\t:2} -n {split:\t:1} --context {split:\t:0} --all-containers --prefix --tail=200"
 mode = "execute"
 
-[actions.delete]
-description = "Delete deployment"
-command = "kubectl --context={split:\t:0} -n {split:\t:1} delete deployment {split:\t:2}"
+[actions.status]
+description = "Rollout status"
+command = "kubectl rollout status deployment/{split:\t:2} -n {split:\t:1} --context {split:\t:0}"
+mode = "execute"
+
+[actions.history]
+description = "Rollout history"
+command = "kubectl rollout history deployment/{split:\t:2} -n {split:\t:1} --context {split:\t:0} | less -R"
+mode = "execute"
+
+[actions.yaml]
+description = "View deployment YAML"
+command = "kubectl get deployment {split:\t:2} -n {split:\t:1} --context {split:\t:0} -o yaml | less -R"
+mode = "execute"
+
+[actions.restart]
+description = "Rollout restart (WRITE — rolling, non-destructive)"
+command = "kubectl rollout restart deployment/{split:\t:2} -n {split:\t:1} --context {split:\t:0}"
 mode = "execute"

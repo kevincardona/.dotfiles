@@ -1,0 +1,4 @@
+# Only .local/bin is meant to be linked. .local/share and .local/state are tool
+# runtime data (nvim plugins, mise, …) that leaked in here — never symlink them.
+share
+state

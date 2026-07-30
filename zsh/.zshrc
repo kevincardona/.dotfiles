@@ -49,7 +49,7 @@ source ~/.zsh_aliases
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
 [ -s "/Users/$USER/.bun/_bun" ] && source "/Users/$USER/.bun/_bun"
 
-# zoxide — frecency-ranked cd; also powers sesh's zoxide session results
+# zoxide — frecency-ranked cd (adds the `z` / `zi` commands)
 command -v zoxide >/dev/null && eval "$(zoxide init zsh)"
 
 # television shell integration: completions + Ctrl-T (smart autocomplete) and

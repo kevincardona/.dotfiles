@@ -1,33 +1,33 @@
 [metadata]
 name = "k8s-pods-ns"
 description = """
-Pods across the namespaces listed in ~/.config/television/k8s-targets
-(one "<context> <namespace>" per line; '#' comments allowed).
+Pods across the namespaces in ~/.config/television/k8s-targets
+(one "<context> <namespace>" per line). Never uses --all-namespaces.
+Type a namespace or context name to filter across clusters.
 
-Never uses --all-namespaces, so it works on locked-down clusters.
-Cycle/edit that file to change which clusters + namespaces are shown.
-
-  ctrl-l  follow logs      ctrl-e  exec /bin/sh
-  ctrl-d  delete pod       ctrl-r  reload list
+Read-only + observe (no delete). Press ctrl-x for the full action list.
+  ctrl-l  follow logs (all containers)   ctrl-e  exec /bin/sh
+  ctrl-y  view yaml                       ctrl-x  more: previous logs, events, describe
 """
 requirements = ["kubectl"]
 
 [source]
 # For every configured "<context> <namespace>", list that namespace's pods.
-# Emits TAB-separated:  context  namespace  name  status
+# Flags go AFTER the verb so wrapped/plugin kubectls accept them.
+# Emits TAB-separated:  context  namespace  name  status  restarts  age
 command = '''
 while read -r ctx ns _; do
   case "$ctx" in ''|\#*) continue ;; esac
   [ -z "$ns" ] && continue
-  kubectl --context="$ctx" -n "$ns" get pods --no-headers 2>/dev/null \
-    | awk -v c="$ctx" -v n="$ns" '{print c"\t"n"\t"$1"\t"$3}'
+  kubectl get pods --no-headers -n "$ns" --context "$ctx" 2>/dev/null \
+    | awk -v c="$ctx" -v n="$ns" '{print c"\t"n"\t"$1"\t"$3"\t"$4"\t"$5}'
 done < "${TV_K8S_TARGETS:-$HOME/.config/television/k8s-targets}"
 '''
-display = "{split:\t:2}   [{split:\t:0}/{split:\t:1}]  {split:\t:3}"
+display = "{split:\t:2}   [{split:\t:0}/{split:\t:1}]  {split:\t:3}  restarts:{split:\t:4}  {split:\t:5}"
 output = "{split:\t:2}"
 
 [preview]
-command = "kubectl --context={split:\t:0} -n {split:\t:1} describe pod {split:\t:2}"
+command = "kubectl describe pod {split:\t:2} -n {split:\t:1} --context {split:\t:0}"
 
 [ui]
 layout = "portrait"
@@ -36,19 +36,29 @@ preview_panel = { size = 65 }
 [keybindings]
 ctrl-l = "actions:logs"
 ctrl-e = "actions:exec"
-ctrl-d = "actions:delete"
+ctrl-y = "actions:yaml"
 
 [actions.logs]
-description = "Follow logs"
-command = "kubectl --context={split:\t:0} -n {split:\t:1} logs -f {split:\t:2}"
+description = "Follow logs (all containers)"
+command = "kubectl logs -f {split:\t:2} -n {split:\t:1} --context {split:\t:0} --all-containers --prefix --tail=200"
+mode = "execute"
+
+[actions.prevlogs]
+description = "Previous logs from last crash (all containers)"
+command = "kubectl logs -p {split:\t:2} -n {split:\t:1} --context {split:\t:0} --all-containers --prefix --tail=1000 | less -R"
 mode = "execute"
 
 [actions.exec]
-description = "Exec /bin/sh in pod"
-command = "kubectl --context={split:\t:0} -n {split:\t:1} exec -it {split:\t:2} -- /bin/sh"
+description = "Exec /bin/sh in the pod"
+command = "kubectl exec -it {split:\t:2} -n {split:\t:1} --context {split:\t:0} -- /bin/sh"
 mode = "execute"
 
-[actions.delete]
-description = "Delete pod"
-command = "kubectl --context={split:\t:0} -n {split:\t:1} delete pod {split:\t:2}"
+[actions.yaml]
+description = "View pod YAML"
+command = "kubectl get pod {split:\t:2} -n {split:\t:1} --context {split:\t:0} -o yaml | less -R"
+mode = "execute"
+
+[actions.events]
+description = "Recent events for this pod"
+command = "kubectl get events -n {split:\t:1} --context {split:\t:0} --field-selector involvedObject.name={split:\t:2} --sort-by=.lastTimestamp | less -R"
 mode = "execute"

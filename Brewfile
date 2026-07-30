@@ -1,9 +1,7 @@
 # Brewfile — CLI tools these dotfiles depend on.
 #
-# Fresh machine:
-#   cd ~/.dotfiles && brew bundle
-#   stow zsh tmux kitty television sesh          # symlink the configs
-#   tv update-channels                           # pull television's default channels
+# Fresh machine:  cd ~/.dotfiles && make      (runs everything — see the Makefile)
+# Just the packages:  brew bundle
 #
 # kubectl / helm / docker come from Rancher Desktop (installed separately), not brew.
 
@@ -13,11 +11,10 @@ brew "tmux"        # terminal multiplexer
 brew "neovim"      # $EDITOR (config is the nvim/.config/nvim submodule)
 brew "mise"        # runtime/version manager (replaced asdf)
 
-# --- television + sesh: session / fuzzy-find stack ---
-brew "television"  # `tv` — the fuzzy finder + channels
-brew "sesh"        # smart tmux session manager (prefix+f)
-brew "zoxide"      # frecency `cd`; powers sesh's zoxide results and `z`
-brew "fzf"         # tmux-sessionizer + shell helper functions
+# --- television: fuzzy-find + channels ---
+brew "television"  # `tv` — the fuzzy finder + channels (tmux-sessionizer pipes into it)
+brew "fzf"         # shell helper functions (ctrl-o, gw, cds, …)
+brew "zoxide"      # frecency `cd` — the `z` command (optional; not used by sessionizer)
 brew "fd"          # fast find — backs television's `files` channel
 brew "bat"         # syntax-highlighted previews in television
 

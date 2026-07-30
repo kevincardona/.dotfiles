@@ -45,14 +45,14 @@ usage() {
     exit 1
 }
 
-# Check if exactly one argument is provided, if not use fzf to select directory
+# Check if exactly one argument is provided, if not use television (tv) to select directory
 if [[ $# -eq 1 ]]; then
     selected=$1
 elif [[ ${#EXISTING_PATHS[@]} -eq 0 ]]; then
     echo "tmux-sessionizer: no search paths exist on this machine" >&2
     exit 1
 else
-    selected=$(find "${EXISTING_PATHS[@]}" -mindepth 1 -maxdepth 1 -type d | fzf)
+    selected=$(find "${EXISTING_PATHS[@]}" -mindepth 1 -maxdepth 1 -type d | tv)
 fi
 
 # Exit if no directory was selected

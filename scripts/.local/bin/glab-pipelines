@@ -20,6 +20,7 @@ CUSTOM_GITLAB_URL=""
 CLOUDBEES=false
 DIFF_MODE=false
 WATCH_PIPELINE=""
+LIST_MODE=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -29,6 +30,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --branch)
             MODE="branch"
+            shift
+            ;;
+        --list)
+            LIST_MODE=true
             shift
             ;;
         --cloudbees|-c)
@@ -297,6 +302,18 @@ main() {
     local branch=""
     if [[ "$MODE" == "branch" ]]; then
         branch=$(get_current_branch)
+    fi
+
+    # --list: machine-readable TSV for the television `gitlab-pipelines` channel.
+    # Exits before the banner/fzf below so the ci/cia interactive flow is untouched.
+    if [[ "$LIST_MODE" == "true" ]]; then
+        local pipelines
+        pipelines=$(fetch_pipelines "$host" "$owner" "$repo" "$token" "$branch" 30)
+        if [[ -z "$pipelines" || "$pipelines" == "[]" || ! "$pipelines" =~ ^\[ ]]; then
+            exit 0
+        fi
+        echo "$pipelines" | jq -r '.[] | [.id, .status, .ref, (.created_at // "")[0:16], .web_url] | @tsv'
+        exit 0
     fi
     
     echo -e "${BLUE}${BOLD}GitLab Pipeline Browser${NC}"

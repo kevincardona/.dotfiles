@@ -1,30 +1,37 @@
 [metadata]
 name = "k8s-pods-ns"
 description = """
-Pods across the namespaces in ~/.config/television/k8s-targets
-(one "<context> <namespace>" per line). Never uses --all-namespaces.
-Type a namespace or context name to filter across clusters.
+Pods, scoped per cluster/namespace so it loads FAST (one `kubectl get pods`,
+not every namespace at once). Press ctrl-s to switch scope:
+  sf-test  ->  au-test  ->  test (both)  ->  all configured (slow)
+Type to filter. Read-only + observe (no delete).
 
-Read-only + observe (no delete). Press ctrl-x for the full action list.
-  ctrl-l  follow logs (all containers)   ctrl-e  exec /bin/sh
-  ctrl-y  view yaml                       ctrl-x  more: previous logs, events, describe
+  ctrl-l  follow logs (JSON-highlighted)   ctrl-e  exec /bin/sh
+  ctrl-y  view yaml                         ctrl-s  switch scope
+  ctrl-x  more: events, prev logs, top, services/ingress in this namespace
 """
 requirements = ["kubectl"]
 
 [source]
-# For every configured "<context> <namespace>", list that namespace's pods.
-# Flags go AFTER the verb so wrapped/plugin kubectls accept them.
-# Emits TAB-separated:  context  namespace  name  status  restarts  age
-command = '''
-while read -r ctx ns _; do
-  case "$ctx" in ''|\#*) continue ;; esac
-  [ -z "$ns" ] && continue
-  kubectl get pods --no-headers -n "$ns" --context "$ctx" 2>/dev/null \
-    | awk -v c="$ctx" -v n="$ns" '{print c"\t"n"\t"$1"\t"$3"\t"$4"\t"$5}'
-done < "${TV_K8S_TARGETS:-$HOME/.config/television/k8s-targets}"
-'''
-display = "{split:\t:2}   [{split:\t:0}/{split:\t:1}]  {split:\t:3}  restarts:{split:\t:4}  {split:\t:5}"
+# Every source emits TAB:  context  namespace  name  status  restarts  age
 output = "{split:\t:2}"
+display = "{split:\t:2}   [{split:\t:0}/{split:\t:1}]  {split:\t:3}  restarts:{split:\t:4}  {split:\t:5}"
+
+[[source.command]]
+name = "sf-test"
+run = '''kubectl get pods --no-headers -n number-provisioning-beta --context sf-test 2>/dev/null | awk '{print "sf-test\tnumber-provisioning-beta\t"$1"\t"$3"\t"$4"\t"$5}' '''
+
+[[source.command]]
+name = "au-test"
+run = '''kubectl get pods --no-headers -n number-provisioning-beta --context au-test 2>/dev/null | awk '{print "au-test\tnumber-provisioning-beta\t"$1"\t"$3"\t"$4"\t"$5}' '''
+
+[[source.command]]
+name = "test (sf+au)"
+run = '''for c in sf-test au-test; do kubectl get pods --no-headers -n number-provisioning-beta --context "$c" 2>/dev/null | awk -v c="$c" '{print c"\tnumber-provisioning-beta\t"$1"\t"$3"\t"$4"\t"$5}'; done'''
+
+[[source.command]]
+name = "all configured (slow)"
+run = '''while read -r ctx ns _; do case "$ctx" in ''|\#*) continue ;; esac; [ -z "$ns" ] && continue; kubectl get pods --no-headers -n "$ns" --context "$ctx" 2>/dev/null | awk -v c="$ctx" -v n="$ns" '{print c"\t"n"\t"$1"\t"$3"\t"$4"\t"$5}'; done < "${TV_K8S_TARGETS:-$HOME/.config/television/k8s-targets}"'''
 
 [preview]
 command = "kubectl describe pod {split:\t:2} -n {split:\t:1} --context {split:\t:0}"
@@ -39,13 +46,13 @@ ctrl-e = "actions:exec"
 ctrl-y = "actions:yaml"
 
 [actions.logs]
-description = "Follow logs (all containers)"
-command = "kubectl logs -f {split:\t:2} -n {split:\t:1} --context {split:\t:0} --all-containers --prefix --tail=200"
+description = "Follow logs (JSON-highlighted)"
+command = "kubectl logs -f {split:\t:2} -n {split:\t:1} --context {split:\t:0} --all-containers | jq -R -r -C -c 'fromjson? // .'"
 mode = "execute"
 
 [actions.prevlogs]
-description = "Previous logs from last crash (all containers)"
-command = "kubectl logs -p {split:\t:2} -n {split:\t:1} --context {split:\t:0} --all-containers --prefix --tail=1000 | less -R"
+description = "Previous logs from last crash (JSON-highlighted)"
+command = "kubectl logs -p {split:\t:2} -n {split:\t:1} --context {split:\t:0} --all-containers | jq -R -r -C -c 'fromjson? // .' | less -R"
 mode = "execute"
 
 [actions.exec]
@@ -61,4 +68,19 @@ mode = "execute"
 [actions.events]
 description = "Recent events for this pod"
 command = "kubectl get events -n {split:\t:1} --context {split:\t:0} --field-selector involvedObject.name={split:\t:2} --sort-by=.lastTimestamp | less -R"
+mode = "execute"
+
+[actions.top]
+description = "Resource usage (needs metrics-server)"
+command = "kubectl top pod {split:\t:2} -n {split:\t:1} --context {split:\t:0} --containers | less -R"
+mode = "execute"
+
+[actions.services]
+description = "Services in this namespace"
+command = "kubectl get svc -n {split:\t:1} --context {split:\t:0} -o wide | less -R"
+mode = "execute"
+
+[actions.ingress]
+description = "Ingresses in this namespace"
+command = "kubectl get ingress -n {split:\t:1} --context {split:\t:0} -o wide | less -R"
 mode = "execute"

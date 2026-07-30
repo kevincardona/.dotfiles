@@ -1,0 +1,41 @@
+# Television channel for sesh session management
+# https://github.com/joshmedeski/sesh
+
+[metadata]
+name = "sesh"
+description = "Session manager integrating tmux sessions, zoxide directories, and config paths"
+requirements = ["sesh", "fd"]
+
+[source]
+# Multiple source commands for cycling through different modes
+# Press Ctrl+S to cycle between sources
+command = [
+  { name = "All",         run = "$HOME/.local/bin/sesh-list-all" },
+  { name = "Tmux",        run = "sesh list -t --icons" },
+  { name = "Configs",     run = "sesh list -c --icons" },
+  { name = "Zoxide",      run = "sesh list -z --icons" },
+  # Prefix each path with an icon field so it matches the "<icon> <name>" shape
+  # that `output`/`preview`/`connect` expect (they strip field 0 via split: :1..).
+  { name = "Directories", run = "$HOME/.local/bin/tmux-sessionizer --list | sed 's|^|📁 |'" },
+]
+ansi = true
+frecency = false # handled by sesh
+no_sort = true # handled by sesh
+output = "{strip_ansi|split: :1..|join: }"
+
+[preview]
+command = "sesh preview '{strip_ansi|split: :1..|join: }'"
+
+[keybindings]
+enter = "actions:connect"
+ctrl-d = ["actions:kill_session", "reload_source"]
+
+[actions.connect]
+description = "Connect to selected session"
+command = "sesh connect '{strip_ansi|split: :1..|join: }'"
+mode = "execute"
+
+[actions.kill_session]
+description = "Kill selected tmux session (press Ctrl+r to reload)"
+command = "tmux kill-session -t '{strip_ansi|split: :1..|join: }'"
+mode = "fork"

@@ -1,0 +1,39 @@
+# Television channel for AI chats — search "what is AI working on", jump to it.
+# Backed by the `ai-agent` script (single source of truth).
+#
+#   live agents     session:window.pane   enter → attach to that chat
+#   recent chats    🕘 project:<tool>:…    enter → resume the last chat there
+#   start           🚀 +start             enter → pick a project (sesh), then an agent
+#
+#   enter   attach / resume / launch
+#   ctrl-d  delete: kill a live agent's pane, or trash a recent chat's transcript
+
+[metadata]
+name = "ai"
+description = "Search your AI chats and jump to them (claude, codex, opencode, gemini, cursor, ollama) — attach live agents, resume recent ones, or start new"
+requirements = ["tmux"]
+
+[source]
+# Absolute path: tv's shell may not have ~/.local/bin on PATH (tmux server PATH).
+command = "$HOME/.local/bin/ai-agent --list"
+ansi = true
+no_sort = true   # preserve script order: live agents first, then recent, then start
+# Rows are "<icon>  <id>  <meta>" — the id is field 1 (0-based) after the icon.
+output = "{split:  :1}"
+
+[preview]
+command = "$HOME/.local/bin/ai-agent preview '{split:  :1}'"
+
+[keybindings]
+enter = "actions:open"
+ctrl-d = ["actions:delete", "reload_source"]
+
+[actions.open]
+description = "Attach to the chat, resume it, or launch a new one"
+command = "$HOME/.local/bin/ai-agent open '{split:  :1}'"
+mode = "execute"
+
+[actions.delete]
+description = "Delete: kill a live agent's pane, or trash a recent chat's transcript"
+command = "$HOME/.local/bin/ai-agent kill '{split:  :1}'"
+mode = "fork"

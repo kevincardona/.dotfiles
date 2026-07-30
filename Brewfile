@@ -22,5 +22,4 @@ brew "bat"         # syntax-highlighted previews in television
 brew "jq"          # sw() search helper + JSON wrangling
 brew "argocd"      # television argocd-apps channel (run `argocd login` to use)
 brew "lazygit"     # `lg`
-brew "glab"        # glab-pipelines script (`ci` / `cia`)
 brew "trash"       # `del` / `dl` aliases

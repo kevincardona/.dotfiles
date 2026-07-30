@@ -1,0 +1,251 @@
+#!/usr/bin/env bash
+# ai-agent — find your AI chats and jump to them (television `ai` channel).
+#
+# The list is project-centric: "what is AI working on", searchable, Enter jumps.
+# Rows are:
+#   (1) live agents   — any tmux pane whose command is an agent  → Enter attaches
+#   (2) recent chats  — projects AI worked on (~/.claude/projects, gemini)
+#                       → Enter resumes the last chat there (claude --continue, …)
+#   (3) start         — 🚀 +start → pick a project (sesh folders), then an agent
+#
+# Agents run in the project's own tmux session (sessionizer-named, e.g.
+# ~/personal/scratchpad/booky → session "booky"), in a window named after the tool.
+#
+#   ai-agent --list          channel source
+#   ai-agent open <id>       enter action (attach / resume / launch)
+#   ai-agent preview <id>    preview pane
+
+set -uo pipefail
+
+SESSIONIZER="${HOME}/.local/bin/tmux-sessionizer"
+
+# --- agent registry -------------------------------------------------------
+ALL_AGENTS=(claude codex opencode gemini cursor ollama)
+# Foreground commands that mean "an AI agent is running in this pane".
+AGENT_CMD_RE='^(claude|codex|opencode|gemini|cursor-agent|ollama|aider)$'
+
+agent_cmd() {   # interactive command run inside the session
+    case "$1" in
+        claude)   echo "claude" ;;
+        codex)    echo "codex" ;;
+        opencode) echo "opencode" ;;
+        gemini)   echo "gemini" ;;
+        cursor)   command -v cursor-agent >/dev/null 2>&1 && echo "cursor-agent" || echo "cursor ." ;;
+        ollama)   echo 'm=$(ollama list 2>/dev/null | awk "NR==2{print \$1}"); [ -n "$m" ] && ollama run "$m" || { echo "no ollama models pulled — run: ollama pull llama3.2"; exec $SHELL; }' ;;
+        *)        echo "" ;;
+    esac
+}
+
+agent_resume_cmd() {   # resume the most recent conversation in the cwd ("" = unsupported)
+    case "$1" in
+        claude)   echo "claude --continue" ;;
+        codex)    echo "codex resume --last" ;;
+        gemini)   echo "gemini --resume latest" ;;
+        opencode) echo "opencode --continue" ;;
+        *)        echo "" ;;   # cursor/ollama: no conversation resume -> start fresh
+    esac
+}
+
+# ANSI-colored ● per agent. Emoji colored-circles (U+1F7Ex) are Unicode-12 and
+# missing from many terminal fonts; ● + ANSI always works (channel has ansi=true).
+agent_icon() {
+    local c
+    case "$1" in
+        claude) c='95' ;; codex) c='92' ;; opencode) c='93' ;;
+        gemini) c='94' ;; cursor) c='97' ;; ollama) c='96' ;; *) c='90' ;;
+    esac
+    printf '\033[%sm●\033[0m' "$c"
+}
+
+installed() {
+    case "$1" in
+        cursor) command -v cursor-agent >/dev/null 2>&1 || command -v cursor >/dev/null 2>&1 ;;
+        *)      command -v "$1" >/dev/null 2>&1 ;;
+    esac
+}
+
+# --- project history (the "other factors") --------------------------------
+claude_encode() { printf '%s' "$1" | sed 's#[/.]#-#g'; }
+
+# Emit "epoch<TAB>path<TAB>agent" for every project AI has recently worked on.
+history_projects() {
+    local cproj="$HOME/.claude/projects"
+    if [ -d "$cproj" ]; then
+        local d newest cwd epoch
+        for d in "$cproj"/*/; do
+            [ -d "$d" ] || continue
+            newest=$(ls -t "$d"*.jsonl 2>/dev/null | head -1)
+            [ -n "$newest" ] || continue
+            cwd=$(grep -o '"cwd":"[^"]*"' "$newest" 2>/dev/null | head -1 | sed 's/.*"cwd":"//; s/"$//')
+            [ -n "$cwd" ] && [ -d "$cwd" ] || continue
+            epoch=$(stat -f '%m' "$newest" 2>/dev/null)
+            printf '%s\t%s\t%s\n' "${epoch:-0}" "$cwd" "claude"
+        done
+    fi
+    local gjson="$HOME/.gemini/projects.json"
+    if [ -f "$gjson" ]; then
+        local epoch; epoch=$(stat -f '%m' "$gjson" 2>/dev/null)
+        grep -o '"/[^"]*"[[:space:]]*:' "$gjson" 2>/dev/null | sed 's/"[[:space:]]*:$//; s/^"//' \
+            | while IFS= read -r p; do
+                [ -d "$p" ] && printf '%s\t%s\t%s\n' "${epoch:-0}" "$p" "gemini"
+            done
+    fi
+}
+
+reltime() {
+    local now e d
+    now=$(date +%s); e=$1; d=$(( now - e ))
+    if   [ "$d" -lt 3600 ];  then echo "$(( d/60 ))m"
+    elif [ "$d" -lt 86400 ]; then echo "$(( d/3600 ))h"
+    else echo "$(( d/86400 ))d"; fi
+}
+
+# --- channel source -------------------------------------------------------
+# Rows are "<icon>  <id>  <meta>"  (double-space delimited; id = field 1).
+cmd_list() {
+    local live_paths=""   # dirs with a running agent (to dedupe history)
+
+    # (1) live agents: any pane whose foreground command is an agent, newest first.
+    #     id = session:window.pane so Enter attaches to the exact chat.
+    if command -v tmux >/dev/null 2>&1; then
+        while IFS=$'\t' read -r _ target cmd path; do
+            [[ $cmd =~ $AGENT_CMD_RE ]] || continue
+            [ -n "$path" ] && live_paths+="$path"$'\n'
+            printf '%s  %s  %s · %s\n' "$(agent_icon "$cmd")" "$target" "$cmd" "${path/#$HOME/\~}"
+        done < <(tmux list-panes -a -F '#{window_activity}|#{session_name}:#{window_index}.#{pane_index}|#{pane_current_command}|#{pane_current_path}' 2>/dev/null \
+                    | awk -F'|' '{ print $1"\t"$2"\t"$3"\t"$4 }' | sort -rn -k1,1)
+    fi
+
+    # (2) recent chats with no live agent, newest first, deduped by path.
+    history_projects | sort -rn -k1,1 | awk -F'\t' '!seen[$2]++' | while IFS=$'\t' read -r epoch path agent; do
+        grep -qxF "$path" <<<"$live_paths" && continue
+        # id carries the tool so Enter resumes it directly (project:<tool>:<path>).
+        printf '🕘  project:%s:%s  %s · %s · %s\n' "$agent" "$path" "$(basename "$path")" "$(reltime "$epoch")" "$agent"
+    done
+
+    # (3) start entry.
+    printf '🚀  +start  start an agent in any project…\n'
+}
+
+# --- pickers --------------------------------------------------------------
+pick_dir()   { "$SESSIONIZER" --list | tv 2>/dev/null; }
+pick_agent() {
+    local t
+    for t in "${ALL_AGENTS[@]}"; do installed "$t" && printf '%s  %s\n' "$(agent_icon "$t")" "$t"; done \
+        | tv 2>/dev/null | awk -F'  ' '{print $2}'
+}
+
+# Attach to a target: a session name, or a "session:window.pane" pane target.
+attach() {
+    local target=$1 sess rest win
+    sess=${target%%:*}
+    if [ -n "${TMUX:-}" ]; then
+        tmux switch-client -t "$sess" 2>/dev/null
+    else
+        tmux attach-session -t "$sess" 2>/dev/null
+    fi
+    if [ "$target" != "$sess" ]; then      # has :window.pane — focus it
+        rest=${target#*:}; win=${rest%%.*}
+        tmux select-window -t "$sess:$win" 2>/dev/null
+        case "$rest" in *.*) tmux select-pane -t "$target" 2>/dev/null ;; esac
+    fi
+}
+
+# Run an agent in the project's own tmux session (sessionizer-named), in its own
+# window, so it lives alongside your other work there.
+#   $3 = "resume" -> continue the most recent conversation there (else start fresh)
+launch() {
+    local tool=$1 dir=$2 mode=${3:-fresh}
+    dir=${dir/#\~/$HOME}
+    local run
+    if [ "$mode" = resume ]; then run=$(agent_resume_cmd "$tool"); fi
+    [ -z "${run:-}" ] && run=$(agent_cmd "$tool")   # fresh, or resume unsupported
+    [ -z "$run" ] && { echo "unknown agent: $tool" >&2; return 1; }
+
+    local name; name=$(basename "$dir" | tr . _)   # sessionizer session-name convention
+    local target
+    if tmux has-session -t="$name" 2>/dev/null; then
+        target=$(tmux new-window -t "$name" -n "$tool" -c "$dir" -P \
+                    -F '#{session_name}:#{window_index}.#{pane_index}' "$run")
+    else
+        tmux new-session -ds "$name" -n "$tool" -c "$dir" "$run"
+        target=$(tmux display-message -pt "$name" '#{session_name}:#{window_index}.#{pane_index}')
+    fi
+    attach "$target"
+}
+
+cmd_open() {
+    local id=$1
+    [ -z "$id" ] && exit 0
+    case "$id" in
+        +start)
+            # Interactive dir+agent pick needs a real TTY — run it in a fresh window.
+            tmux new-window -n ai-start "$HOME/.local/bin/ai-agent pick-and-launch" ;;
+        project:*)
+            # project:<tool>:<path> — resume that agent's last conversation there.
+            local rest=${id#project:}
+            local tool=${rest%%:*}
+            local dir=${rest#*:}
+            launch "$tool" "$dir" resume ;;
+        *)
+            attach "$id" ;;   # live pane target / session name
+    esac
+}
+
+# The interactive "start in any project" flow (runs in its own window).
+cmd_pick_and_launch() {
+    local dir; dir=$(pick_dir);   [ -z "$dir" ]  && exit 0
+    local tool; tool=$(pick_agent); [ -z "$tool" ] && exit 0
+    launch "$tool" "$dir"
+}
+
+_trash() {   # recoverable delete (macOS Trash) with rm fallback
+    if command -v trash >/dev/null 2>&1; then trash "$@" 2>/dev/null; else rm -rf "$@"; fi
+}
+
+# Delete the selected row: a live agent's pane, or a recent chat's transcript.
+cmd_kill() {
+    local id=$1
+    [ -z "$id" ] && exit 0
+    case "$id" in
+        +start) : ;;   # nothing to delete
+        project:*)
+            # remove the Claude transcript dir for this project (matched by its
+            # recorded cwd, not a lossy re-encode) → drops it off the list.
+            local rest=${id#project:} path
+            path=${rest#*:}
+            local d newest cwd
+            for d in "$HOME/.claude/projects"/*/; do
+                [ -d "$d" ] || continue
+                newest=$(ls -t "$d"*.jsonl 2>/dev/null | head -1); [ -n "$newest" ] || continue
+                cwd=$(grep -o '"cwd":"[^"]*"' "$newest" 2>/dev/null | head -1 | sed 's/.*"cwd":"//; s/"$//')
+                [ "$cwd" = "$path" ] && { _trash "$d"; break; }
+            done ;;
+        *)
+            # live pane target — kill just this agent's pane, NOT the whole session.
+            tmux kill-pane -t "$id" 2>/dev/null || true ;;
+    esac
+}
+
+cmd_preview() {
+    local id=$1
+    case "$id" in
+        +start)     echo "Pick a project (sesh folders), then an agent to launch." ;;
+        project:*)  local rest=${id#project:} tool d
+                    tool=${rest%%:*}; d=${rest#*:}
+                    echo "📁 $d"; echo
+                    git -C "$d" -c color.ui=always status -sb 2>/dev/null | head -20
+                    echo; echo "Enter → resume $tool's last chat here." ;;
+        *)          tmux capture-pane -pt "$id" 2>/dev/null || echo "no such session: $id" ;;
+    esac
+}
+
+case "${1:---list}" in
+    --list|list)     cmd_list ;;
+    open)            shift; cmd_open "${1:-}" ;;
+    kill|delete)     shift; cmd_kill "${1:-}" ;;
+    preview)         shift; cmd_preview "${1:-}" ;;
+    launch)          shift; launch "${1:?tool}" "${2:?dir}" "${3:-fresh}" ;;
+    pick-and-launch) cmd_pick_and_launch ;;
+    *)               echo "usage: ai-agent [--list|open|preview|launch|pick-and-launch]" >&2; exit 1 ;;
+esac

@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Combined source for the television `sesh` channel's default ("All") view.
+#
+# Emits, as "<icon> <name>" lines that the channel's output template understands:
+#   1. everything `sesh list` already knows  (active tmux sessions + zoxide + configs)
+#   2. every tmux-sessionizer project folder NOT already covered by (1)
+#
+# So the main page shows your live sessions alongside all project folders, with
+# no duplicates. Folders reuse `tmux-sessionizer --list` so the roots stay a
+# single source of truth.
+
+set -uo pipefail
+
+# (1) sesh's own list — passthrough, already deduped/ordered by sesh.
+base=$(sesh list --icons 2>/dev/null)
+[[ -n $base ]] && printf '%s\n' "$base"
+
+# Paths sesh already listed (strip the leading "<icon> " so we can compare).
+existing_paths=$(printf '%s\n' "$base" | sed 's/^[^ ]* //')
+
+# Names of live tmux sessions (a folder connected via sesh becomes a session
+# named after its basename with '.' -> '_').
+sessions=$(tmux list-sessions -F '#{session_name}' 2>/dev/null || true)
+
+# (2) project folders that aren't already shown.
+while IFS= read -r dir; do
+    [[ -z $dir ]] && continue
+    tilde=${dir/#$HOME/\~}
+    name=$(basename "$dir" | tr . _)
+    grep -qxF "$name" <<<"$sessions" && continue        # already an active session
+    grep -qxF "$tilde" <<<"$existing_paths" && continue # already listed by sesh
+    printf '📁 %s\n' "$tilde"
+done < <("${HOME}/.local/bin/tmux-sessionizer" --list)

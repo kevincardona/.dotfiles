@@ -73,10 +73,16 @@ tpm:
 	@[ -d "$(HOME)/.tmux/plugins/tpm" ] || git clone --depth=1 https://github.com/tmux-plugins/tpm "$(HOME)/.tmux/plugins/tpm"
 	@"$(HOME)/.tmux/plugins/tpm/bin/install_plugins" || true
 
-## tv: pull television's default channels + seed the k8s-targets file
+## tv: pull television's default channels + seed config files
 tv:
 	@command -v tv >/dev/null && tv update-channels || true
 	@[ -f "$(HOME)/.config/television/k8s-targets" ] || cp "$(DOTDIR)/television/.config/television/k8s-targets.example" "$(HOME)/.config/television/k8s-targets"
+	@[ -f "$(HOME)/.config/television/ssh-hosts" ] || cp "$(DOTDIR)/television/.config/television/ssh-hosts.example" "$(HOME)/.config/television/ssh-hosts"
+	@if [ -f "$(HOME)/.config/television/cable/ssh-hosts.toml" ] && [ ! -L "$(HOME)/.config/television/cable/ssh-hosts.toml" ]; then \
+		rm "$(HOME)/.config/television/cable/ssh-hosts.toml" && \
+		ln -s ../../../.dotfiles/television/.config/television/cable/ssh-hosts.toml "$(HOME)/.config/television/cable/ssh-hosts.toml" && \
+		echo ">> Replaced upstream ssh-hosts.toml with dotfiles version (tmux session picker)."; \
+	fi
 
 ## help: list the available targets
 help:

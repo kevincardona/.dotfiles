@@ -4,6 +4,7 @@ description = """
 Deployments in $K8S_CTX / $K8S_NS. READ-ONLY unless the namespace's perm is 'rw'.
 
   enter / ctrl-l  logs (all pods) in a dedicated window   ctrl-y  yaml
+  ctrl-a  logs across ALL clusters in this group (same name, split panes)
   ctrl-g  -> ingresses   ctrl-v  -> services   (ctrl-x: -> pods)
   ctrl-x  more: rollout status/history, events, RESTART (write)
 """
@@ -25,13 +26,19 @@ preview_panel = { size = 65 }
 [keybindings]
 enter = "actions:logs"
 ctrl-l = "actions:logs"
+ctrl-a = "actions:group_logs"
 ctrl-y = "actions:yaml"
 ctrl-g = "actions:to_ingress"
 ctrl-v = "actions:to_svc"
 
 [actions.logs]
-description = "Logs from all pods in a dedicated tmux window — read"
-command = "$HOME/.local/bin/klog $K8S_CTX $K8S_NS deployment/{0}"
+description = "Logs from all pods in the dedicated 'k8s' tmux session — read"
+command = "d={0}; if kubectl get deployment \"$d\" -n $K8S_NS --context $K8S_CTX >/dev/null 2>&1; then $HOME/.local/bin/klog $K8S_CTX $K8S_NS deployment/\"$d\"; else printf '\\nNo deployment \"%s\" in %s/%s — is the cluster up?\\n\\nPress enter...' \"$d\" \"$K8S_CTX\" \"$K8S_NS\"; read _ </dev/tty 2>/dev/null || true; fi"
+mode = "execute"
+
+[actions.group_logs]
+description = "Logs across ALL clusters in this group (same deployment name), split panes — read"
+command = "$HOME/.local/bin/klog --group $K8S_GROUP deployment/{0}"
 mode = "execute"
 
 [actions.status]

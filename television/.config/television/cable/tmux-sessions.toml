@@ -1,0 +1,34 @@
+[metadata]
+name = "tmux-sessions"
+description = """
+List, attach and kill tmux sessions — jump to your `k8s` log session or any ssh
+host session.
+  enter   attach / switch to session     ctrl-d  kill session
+"""
+requirements = ["tmux"]
+
+[source]
+command = "tmux list-sessions -F '#{session_name}\t#{session_windows} windows\t#{session_created_string}'"
+display = "{split:\t:0}  ({split:\t:1})"
+output = "{split:\t:0}"
+
+[ui]
+layout = "portrait"
+preview_panel = { size = 55 }
+
+[preview]
+command = "tmux capture-pane -t '{split:\t:0}' -p 2>/dev/null || echo 'No preview available'"
+
+[keybindings]
+enter = "actions:attach"
+ctrl-d = "actions:kill"
+
+[actions.attach]
+description = "Attach / switch to the selected session"
+command = '''s="{0}"; if [ -n "$TMUX" ]; then tmux switch-client -t "$s"; else tmux attach-session -t "$s"; fi'''
+mode = "execute"
+
+[actions.kill]
+description = "Kill the selected session"
+command = "tmux kill-session -t '{0}'"
+mode = "fork"

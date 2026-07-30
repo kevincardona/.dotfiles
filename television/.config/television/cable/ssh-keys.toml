@@ -1,0 +1,39 @@
+[metadata]
+name = "ssh-keys"
+description = """
+Browse and manage SSH keys in ~/.ssh/
+  enter   add key to ssh-agent (if not already)
+  ctrl-d  remove key from agent
+  ctrl-l  list loaded keys with fingerprints
+"""
+requirements = ["ssh-add", "ssh-keygen"]
+
+[source]
+command = '''ls -la ~/.ssh/*.pub 2>/dev/null | awk ''{print $NF}'' | while read f; do key=$(basename "$f" .pub); echo "$key  $f"; done'''
+
+[preview]
+command = '''key_file="$HOME/.ssh/{0}.pub"; if [ -f "$key_file" ]; then ssh-keygen -lf "$key_file" 2>/dev/null || echo "Cannot read key"; else echo "Public key not found: $key_file"; fi'''
+
+[ui]
+layout = "portrait"
+preview_panel = { size = 45 }
+
+[keybindings]
+enter = "actions:add"
+ctrl-d = "actions:remove"
+ctrl-l = "actions:list"
+
+[actions.add]
+description = "Add key to ssh-agent"
+command = '''key_file="$HOME/.ssh/{0}"; ssh-add "$key_file" 2>&1 && echo "Added {0} to agent" || echo "Failed to add {0}"'''
+mode = "execute"
+
+[actions.remove]
+description = "Remove key from ssh-agent"
+command = '''ssh-add -d "$HOME/.ssh/{0}" 2>&1 && echo "Removed {0} from agent" || echo "Key not in agent or failed to remove"'''
+mode = "execute"
+
+[actions.list]
+description = "List all keys in agent"
+command = '''ssh-add -l 2>&1 || echo "No keys loaded"'''
+mode = "execute"

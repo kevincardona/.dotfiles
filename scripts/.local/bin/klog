@@ -1,15 +1,27 @@
 #!/usr/bin/env bash
-# klog — tail one pod's (or deployment's) logs in a dedicated, REUSABLE tmux
-# window: JSON-highlighted, each line prefixed with [context/namespace/pod].
-# Read-only. Used by the television k8s channels (enter on a pod).
+# klog — tail a pod's (or deployment's) logs in a dedicated "k8s" tmux SESSION,
+# one reusable window per target: JSON-highlighted, each line prefixed with
+# [context/namespace/pod]. Read-only. Used by the television k8s channels.
 #
 #   klog <context> <namespace> <target>     target = <pod> or deployment/<name>
+#   klog --group  <group> <target>          one pane per context in the group
 #
-# Re-running for the same target just jumps to the window already tailing it, so
-# your log tails stay "in memory" and one keypress away. Scroll / select with
-# tmux copy-mode (mouse wheel or prefix+[); prefix+p hops back to your last window.
+# All log windows live in a single tmux session named "k8s"; opening a log
+# switches you into that session (creating + attaching it if it doesn't exist,
+# even when you launched tv from outside tmux). Re-opening the same target jumps
+# to the window already tailing it, so your tails stay "in memory" one keypress
+# away. Scroll / select with copy-mode (mouse wheel or prefix+[); prefix+p hops
+# back to your last window; prefix+L / prefix+( switches away from the session.
 
-# --- streaming worker: this is what the log window actually runs ---
+SESSION="k8s"
+
+# Opt-in debug trace: run with KLOG_DEBUG=1 (e.g. `KLOG_DEBUG=1 tv k8s`) to append
+# a line-by-line trace to $KLOG_LOG (default /tmp/klog-debug.log). Use it to see
+# why a k8s session/window isn't appearing on a given machine.
+KLOG_LOG="${KLOG_LOG:-/tmp/klog-debug.log}"
+dbg() { [ -n "${KLOG_DEBUG:-}" ] && printf '%s [%s] %s\n' "$(date '+%H:%M:%S')" "$$" "$*" >>"$KLOG_LOG" 2>/dev/null; return 0; }
+
+# --- streaming worker: this is what each log pane actually runs ---
 if [ "${1:-}" = "--stream" ]; then
     export KCTX="$2" KNS="$3"; target="$4"
     printf '\033[2m── %s / %s · %s ──   (Ctrl-C stops; scroll with copy-mode)\033[0m\n' "$2" "$3" "$target"
@@ -22,28 +34,92 @@ if [ "${1:-}" = "--stream" ]; then
             then $j + {_at:$w} + (if $c.p then {_pod:$c.p} else {} end)
             else "[" + $w + (if $c.p then "/"+$c.p else "" end) + "] " + $c.m
             end'
-    printf '\n\033[2m[log stream ended — press enter to close]\033[0m'; read -r _
+    printf '\n\033[2m[log stream ended — press enter to close]\033[0m'; read -r _ </dev/tty 2>/dev/null || true
     exit 0
 fi
 
+# --- helpers (shared by single + group modes) ---
+
+# window id of $1 (window name) inside the k8s session, or empty if none.
+win_id() {
+    tmux list-windows -t "$SESSION" -F '#{window_id} #{window_name}' 2>/dev/null \
+      | awk -v w="$1" '$2==w{print $1; exit}'
+}
+
+# bring the current terminal into the k8s session, focused on window id $1 —
+# switch-client when we're already in tmux, otherwise attach.
+focus() {
+    tmux select-window -t "$1" 2>/dev/null
+    if [ -n "${TMUX:-}" ]; then
+        dbg "focus: inside tmux -> switch-client -t $1"
+        tmux switch-client -t "$1"; dbg "switch-client rc=$?"
+    else
+        dbg "focus: not in tmux -> attach-session -t $SESSION"
+        tmux attach-session -t "$SESSION"; dbg "attach rc=$?"
+    fi
+}
+
+# --- group mode: one pane per context in the group, combined (kclog-style) ---
+if [ "${1:-}" = "--group" ]; then
+    group="$2"; target="$3"
+    [ -z "$target" ] && { echo "usage: klog --group <group> <pod|deployment/name>" >&2; exit 1; }
+    TGT="${TV_K8S_TARGETS:-$HOME/.config/television/k8s-targets}"
+    self=$(command -v "$0" 2>/dev/null || echo "$0")
+    short=$(printf '%s' "$target" | tr '/' '-' | cut -c1-18)
+    win="log:$group-$short"
+
+    id=""
+    tmux has-session -t "$SESSION" 2>/dev/null && id=$(win_id "$win")
+    if [ -z "$id" ]; then
+        first=1
+        while read -r grp ctx ns _; do
+            case "$grp" in ''|\#*) continue ;; esac
+            [ "$grp" = "$group" ] || continue
+            [ -z "$ns" ] && continue
+            pane="$self --stream '$ctx' '$ns' '$target'"
+            if [ -n "$first" ]; then
+                if tmux has-session -t "$SESSION" 2>/dev/null; then
+                    id=$(tmux new-window -t "$SESSION" -P -F '#{window_id}' -n "$win" "$pane")
+                else
+                    id=$(tmux new-session -d -P -F '#{window_id}' -s "$SESSION" -n "$win" "$pane")
+                fi
+                first=""
+            else
+                tmux split-window -t "$id" "$pane"
+                tmux select-layout -t "$id" tiled >/dev/null 2>&1
+            fi
+        done < "$TGT"
+        [ -z "$id" ] && { echo "no targets for group '$group' in $TGT" >&2; exit 1; }
+        tmux set-window-option -t "$id" remain-on-exit on >/dev/null 2>&1
+        tmux select-layout -t "$id" tiled >/dev/null 2>&1
+    fi
+    focus "$id"
+    exit 0
+fi
+
+# --- single-target mode ---
 ctx="$1"; ns="$2"; target="$3"
 [ -z "$target" ] && { echo "usage: klog <context> <namespace> <pod|deployment/name>" >&2; exit 1; }
 
 short=$(printf '%s' "$target" | tr '/' '-' | cut -c1-24)
 win="log:$short"
 self=$(command -v "$0" 2>/dev/null || echo "$0")
+stream="$self --stream '$ctx' '$ns' '$target'"
+dbg "single: ctx=$ctx ns=$ns target=$target TMUX=${TMUX:-<unset>} tmux=$(command -v tmux || echo MISSING)"
 
-# Outside tmux: just stream inline.
-if [ -z "${TMUX:-}" ]; then
-    exec "$self" --stream "$ctx" "$ns" "$target"
+id=""
+tmux has-session -t "$SESSION" 2>/dev/null && id=$(win_id "$win")
+if [ -z "$id" ]; then
+    if tmux has-session -t "$SESSION" 2>/dev/null; then
+        dbg "k8s session exists -> new-window"
+        id=$(tmux new-window -t "$SESSION" -P -F '#{window_id}' -n "$win" "$stream")
+    else
+        dbg "k8s session missing -> new-session"
+        id=$(tmux new-session -d -P -F '#{window_id}' -s "$SESSION" -n "$win" "$stream")
+    fi
+    dbg "created window id=[$id]"
+    tmux set-window-option -t "$id" remain-on-exit on >/dev/null 2>&1
+else
+    dbg "reusing existing window id=[$id]"
 fi
-
-# Already tailing this target? Jump to that window ("keep it in memory").
-if tmux list-windows -F '#{window_name}' 2>/dev/null | grep -qxF "$win"; then
-    tmux select-window -t "$win"
-    exit 0
-fi
-
-id=$(tmux new-window -P -F '#{window_id}' -n "$win" "$self --stream '$ctx' '$ns' '$target'")
-tmux set-window-option -t "$id" remain-on-exit on >/dev/null 2>&1
-tmux select-window -t "$id"
+focus "$id"

@@ -1,0 +1,34 @@
+[metadata]
+name = "ssh-hosts"
+description = """
+SSH hosts from ~/.ssh/config. Pick a host -> enter to connect (or rejoin an
+existing session). Each host gets its own tmux session named after it, so your
+connections stay put and one keypress away. Browse them all with `tmux-sessions`.
+  enter   connect / rejoin session      ctrl-l  list tmux sessions
+"""
+requirements = ["tmux", "ssh"]
+
+[source]
+# Host aliases from ~/.ssh/config (one per line), minus wildcard patterns.
+command = '''grep -E '^Host ' "$HOME/.ssh/config" 2>/dev/null | tr -s ' ' | cut -d' ' -f2- | tr ' ' '\n' | grep -v '^$' | grep -vE '[*?]' | sort -u'''
+
+[preview]
+command = '''awk '/^Host / { f=0 } /^Host (.*[[:space:]])?{0}([[:space:]].*)?$/ { f=1 } f' "$HOME/.ssh/config"'''
+
+[ui]
+layout = "portrait"
+preview_panel = { size = 45 }
+
+[keybindings]
+enter = "actions:connect"
+ctrl-l = "actions:list-sessions"
+
+[actions.connect]
+description = "Connect in a dedicated tmux session for this host (create + SSH if missing)"
+command = '''h="{0}"; s=$(printf '%s' "$h" | tr '.:' '__'); if ! tmux has-session -t "$s" 2>/dev/null; then tmux new-session -d -s "$s" "ssh $h"; fi; if [ -n "$TMUX" ]; then tmux switch-client -t "$s"; else tmux attach-session -t "$s"; fi'''
+mode = "execute"
+
+[actions.list-sessions]
+description = "List active tmux sessions"
+command = '''tmux list-sessions 2>&1 || echo "No active sessions"; printf "\nPress enter..."; read _ </dev/tty 2>/dev/null || true'''
+mode = "execute"

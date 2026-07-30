@@ -1,0 +1,24 @@
+# SSH hosts for the television `ssh-hosts` drill-down (group -> host).
+#
+# Format:  group  host  [identity_file]
+#   group         logical bundle (e.g. same environment or purpose)
+#   host          hostname or alias (passed directly to ssh)
+#   identity_file optional path to SSH key (default: ~/.ssh/id_rsa or ssh-agent)
+#
+# '#' comments and blank lines are ignored.
+# Copy to ~/.config/television/ssh-hosts and edit per machine.
+
+# dev
+# localhost       127.0.0.1
+# dev-server      192.168.1.10
+
+# staging
+# staging-01      user@staging.example.com
+# staging-02      user@staging.example.com
+
+# prod
+# prod-web-01     user@prod-web-01.example.com
+# prod-api-01     user@prod-api-01.example.com
+
+# jump
+# bastion         user@bastion.example.com

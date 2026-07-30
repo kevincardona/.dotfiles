@@ -32,8 +32,8 @@ ctrl-g = "actions:to_ingress"
 ctrl-v = "actions:to_svc"
 
 [actions.logs]
-description = "Logs in a dedicated tmux window (JSON + [ctx/ns/pod]) — read"
-command = "$HOME/.local/bin/klog $K8S_CTX $K8S_NS {0}"
+description = "Logs in the dedicated 'k8s' tmux session (JSON + [ctx/ns/pod]) — read"
+command = "p={0}; if kubectl get pod \"$p\" -n $K8S_NS --context $K8S_CTX >/dev/null 2>&1; then $HOME/.local/bin/klog $K8S_CTX $K8S_NS \"$p\"; else printf '\\nNo pod \"%s\" in %s/%s — is the cluster up and pods listed?\\n\\nPress enter...' \"$p\" \"$K8S_CTX\" \"$K8S_NS\"; read _ </dev/tty 2>/dev/null || true; fi"
 mode = "execute"
 
 [actions.yaml]

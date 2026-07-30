@@ -8,11 +8,11 @@ that has a GitLab remote.
   enter   open pipeline in browser     ctrl-w  watch until done (notifies)
   ctrl-r  reload
 """
-requirements = ["glab-pipelines"]
 
 [source]
 # glab-pipelines --list emits TAB-separated:  id  status  ref  date  web_url
-command = "glab-pipelines --list"
+# Absolute path: tv's shell may not have ~/.local/bin on PATH (tmux server PATH).
+command = "$HOME/.local/bin/glab-pipelines --list"
 display = "{split:\t:1}  #{split:\t:0}  {split:\t:2}  {split:\t:3}"
 output = "{split:\t:4}"
 
@@ -34,5 +34,5 @@ mode = "execute"
 
 [actions.watch]
 description = "Watch pipeline until it finishes (desktop notification)"
-command = "glab-pipelines --watch {split:\t:0}"
+command = "$HOME/.local/bin/glab-pipelines --watch {split:\t:0}"
 mode = "execute"

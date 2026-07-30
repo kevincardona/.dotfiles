@@ -1,0 +1,37 @@
+[metadata]
+name = "k8s-pods-all"
+description = """
+Every pod in every configured namespace (from k8s-targets). Slow to load, but
+great for searching across clusters. READ-ONLY. Type to filter by pod / context / ns.
+
+  enter / ctrl-l  logs in a dedicated window   ctrl-y  yaml
+"""
+requirements = ["kubectl"]
+
+[source]
+# rows (space-delimited):  context namespace name status   (reads the 4-col k8s-targets)
+output = "{2}"
+display = "{2}   [{0}/{1}]  {3}"
+command = '''while read -r grp ctx ns _; do case "$grp" in ''|\#*) continue ;; esac; [ -z "$ns" ] && continue; kubectl get pods --no-headers -n "$ns" --context "$ctx" 2>/dev/null | awk -v c="$ctx" -v n="$ns" '{print c" "n" "$1" "$3}'; done < "${TV_K8S_TARGETS:-$HOME/.config/television/k8s-targets}"'''
+
+[preview]
+command = "kubectl describe pod {2} -n {1} --context {0}"
+
+[ui]
+layout = "portrait"
+preview_panel = { size = 65 }
+
+[keybindings]
+enter = "actions:logs"
+ctrl-l = "actions:logs"
+ctrl-y = "actions:yaml"
+
+[actions.logs]
+description = "Logs in a dedicated tmux window (JSON + [ctx/ns/pod]) — read"
+command = "$HOME/.local/bin/klog {0} {1} {2}"
+mode = "execute"
+
+[actions.yaml]
+description = "View pod YAML — read"
+command = "kubectl get pod {2} -n {1} --context {0} -o yaml | less -R"
+mode = "execute"

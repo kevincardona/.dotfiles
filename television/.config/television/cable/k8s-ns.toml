@@ -1,0 +1,40 @@
+[metadata]
+name = "k8s-ns"
+description = """
+Namespaces in the chosen group ($K8S_GROUP). Preview peeks at the pods there.
+  enter   pods       ctrl-d  deployments      ctrl-i  ingress
+"""
+requirements = ["kubectl"]
+
+[source]
+# rows (space-delimited):  context namespace perm   — filtered to $K8S_GROUP
+output = "{1}"
+display = "{0}  /  {1}   [{2}]"
+command = '''awk -v g="$K8S_GROUP" '$1 !~ /^#/ && $1==g {print $2" "$3" "$4}' "${TV_K8S_TARGETS:-$HOME/.config/television/k8s-targets}"'''
+
+[preview]
+command = "kubectl get pods --no-headers -n {1} --context {0} 2>/dev/null | head -40 || echo '(unreachable)'"
+
+[ui]
+layout = "portrait"
+preview_panel = { size = 55 }
+
+[keybindings]
+enter = "actions:pods"
+ctrl-d = "actions:deploys"
+ctrl-i = "actions:ingress"
+
+[actions.pods]
+description = "Pods in this context/namespace"
+command = "K8S_CTX={0} K8S_NS={1} K8S_PERM={2} tv k8s-pods-scoped --input-header \"{0} / {1}\""
+mode = "execute"
+
+[actions.deploys]
+description = "Deployments in this context/namespace"
+command = "K8S_CTX={0} K8S_NS={1} K8S_PERM={2} tv k8s-deploy-scoped --input-header \"{0} / {1}\""
+mode = "execute"
+
+[actions.ingress]
+description = "Ingresses in this context/namespace"
+command = "K8S_CTX={0} K8S_NS={1} K8S_PERM={2} tv k8s-ingress-scoped --input-header \"{0} / {1}\""
+mode = "execute"

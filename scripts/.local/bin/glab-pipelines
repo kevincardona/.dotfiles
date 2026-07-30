@@ -115,10 +115,10 @@ get_repo() {
         host="${BASH_REMATCH[1]}"
         owner="${BASH_REMATCH[2]}"
         repo="${BASH_REMATCH[3]}"
-    elif [[ "$remote" =~ https?://([^/]+)/([^/]+)/(.+?)(\.git)?$ ]]; then
+    elif [[ "$remote" =~ https?://([^/]+)/([^/]+)/(.+)$ ]]; then
         host="${BASH_REMATCH[1]}"
         owner="${BASH_REMATCH[2]}"
-        repo="${BASH_REMATCH[3]}"
+        repo="${BASH_REMATCH[3]%.git}"
     else
         echo -e "${RED}Error: Could not parse git remote: $remote${NC}"
         exit 1

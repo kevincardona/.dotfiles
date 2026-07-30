@@ -1,18 +1,19 @@
-# Television k8s channels (k8s-pods-ns / k8s-deployments-ns / k8s-services-ns)
-# read this file to decide which clusters + namespaces to show.
+# Kubernetes targets for the television `k8s` drill-down (group -> namespace -> pods).
 #
-# One target per line:
+# Format:  group  context  namespace  perm
+#   group      logical bundle (e.g. same service across clusters); the top-level picker
+#   context    kube-context (from your kubeconfig)
+#   namespace  namespace to browse
+#   perm       ro = read-only (safe default) | rw = allow exec / rollout restart
 #
-#     <kube-context>  <namespace>
+# '#' comments and blank lines are ignored. Missing/unreachable contexts are skipped.
+# Never uses --all-namespaces. Leave prod as 'ro' unless you really mean it.
 #
-# - Lines starting with '#' are ignored.
-# - Missing or unreachable contexts are skipped silently (like tmux-sessionizer paths).
-# - This never uses --all-namespaces, so it's safe on locked-down clusters.
-#
-# Copy this to ~/.config/television/k8s-targets and edit for each machine.
+# Copy to ~/.config/television/k8s-targets and edit per machine.
 
-rancher-desktop  default
+local  rancher-desktop  default  rw
 
-# --- work clusters: uncomment & edit (contexts live in your work kubeconfig) ---
-# sf-test  number-provisioning-beta
-# au-test  number-provisioning-beta
+# test  sf-test  number-provisioning-beta  rw
+# test  au-test  number-provisioning-beta  rw
+# prod  sf-prod  number-provisioning        ro
+# prod  au-prod  number-provisioning        ro

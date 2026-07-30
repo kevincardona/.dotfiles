@@ -1,0 +1,29 @@
+[metadata]
+name = "k8s"
+description = """
+Kubernetes browser. Pick a GROUP (or 'all-pods') -> namespace -> pods / deployments
+/ ingress / services. Groups + write-permissions come from
+~/.config/television/k8s-targets:   group  context  namespace  perm(ro|rw)
+
+Nothing hits the cluster until you drill into a namespace, so this stays fast.
+'all-pods' lists every pod in every configured namespace (slower, great for search).
+"""
+requirements = ["kubectl"]
+
+[source]
+command = '''{ awk '$1 !~ /^#/ && NF {print $1}' "${TV_K8S_TARGETS:-$HOME/.config/television/k8s-targets}" | sort -u; echo all-pods; }'''
+
+[preview]
+command = '''if [ "{0}" = all-pods ]; then echo "Every pod in every configured namespace (slow to load, great for searching)."; else awk -v g="{0}" '$1 !~ /^#/ && $1==g {print $2"  /  "$3"   ["$4"]"}' "${TV_K8S_TARGETS:-$HOME/.config/television/k8s-targets}"; fi'''
+
+[ui]
+layout = "portrait"
+preview_panel = { size = 45 }
+
+[keybindings]
+enter = "actions:pick"
+
+[actions.pick]
+description = "Open group (or all-pods)"
+command = '''if [ "{0}" = all-pods ]; then tv k8s-pods-all; else K8S_GROUP="{0}" tv k8s-ns; fi'''
+mode = "execute"

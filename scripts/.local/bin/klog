@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# klog — tail one pod's (or deployment's) logs in a dedicated, REUSABLE tmux
+# window: JSON-highlighted, each line prefixed with [context/namespace/pod].
+# Read-only. Used by the television k8s channels (enter on a pod).
+#
+#   klog <context> <namespace> <target>     target = <pod> or deployment/<name>
+#
+# Re-running for the same target just jumps to the window already tailing it, so
+# your log tails stay "in memory" and one keypress away. Scroll / select with
+# tmux copy-mode (mouse wheel or prefix+[); prefix+p hops back to your last window.
+
+# --- streaming worker: this is what the log window actually runs ---
+if [ "${1:-}" = "--stream" ]; then
+    export KCTX="$2" KNS="$3"; target="$4"
+    printf '\033[2m── %s / %s · %s ──   (Ctrl-C stops; scroll with copy-mode)\033[0m\n' "$2" "$3" "$target"
+    kubectl logs -f "$target" -n "$3" --context "$2" --all-containers --prefix --max-log-requests=30 2>&1 \
+      | jq --unbuffered -R -r -C -c '
+          (env.KCTX+"/"+env.KNS) as $w
+          | (capture("^(\\[(?<p>[^\\]]+)\\]\\s+)?(?<m>.*)$")) as $c
+          | ($c.m|try fromjson catch null) as $j
+          | if ($j|type)=="object"
+            then $j + {_at:$w} + (if $c.p then {_pod:$c.p} else {} end)
+            else "[" + $w + (if $c.p then "/"+$c.p else "" end) + "] " + $c.m
+            end'
+    printf '\n\033[2m[log stream ended — press enter to close]\033[0m'; read -r _
+    exit 0
+fi
+
+ctx="$1"; ns="$2"; target="$3"
+[ -z "$target" ] && { echo "usage: klog <context> <namespace> <pod|deployment/name>" >&2; exit 1; }
+
+short=$(printf '%s' "$target" | tr '/' '-' | cut -c1-24)
+win="log:$short"
+self=$(command -v "$0" 2>/dev/null || echo "$0")
+
+# Outside tmux: just stream inline.
+if [ -z "${TMUX:-}" ]; then
+    exec "$self" --stream "$ctx" "$ns" "$target"
+fi
+
+# Already tailing this target? Jump to that window ("keep it in memory").
+if tmux list-windows -F '#{window_name}' 2>/dev/null | grep -qxF "$win"; then
+    tmux select-window -t "$win"
+    exit 0
+fi
+
+id=$(tmux new-window -P -F '#{window_id}' -n "$win" "$self --stream '$ctx' '$ns' '$target'")
+tmux set-window-option -t "$id" remain-on-exit on >/dev/null 2>&1
+tmux select-window -t "$id"

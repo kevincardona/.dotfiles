@@ -1,0 +1,48 @@
+[metadata]
+name = "k8s-ingress-scoped"
+description = """
+Ingresses in $K8S_CTX / $K8S_NS (from the drill-down). READ-ONLY.
+Preview = kubectl describe (rules, hosts, TLS, backend services).
+
+  enter  yaml    ctrl-d  -> deployments   ctrl-v  -> services   (ctrl-x: -> pods)
+"""
+requirements = ["kubectl"]
+
+[source]
+# rows:  name   (context/namespace from env)
+output = "{0}"
+display = "{0}"
+command = '''kubectl get ingress --no-headers -n "$K8S_NS" --context "$K8S_CTX" 2>/dev/null | awk '{print $1}' '''
+
+[preview]
+command = "kubectl describe ingress {0} -n $K8S_NS --context $K8S_CTX"
+
+[ui]
+layout = "portrait"
+preview_panel = { size = 65 }
+
+[keybindings]
+enter = "actions:yaml"
+ctrl-y = "actions:yaml"
+ctrl-d = "actions:to_deploy"
+ctrl-v = "actions:to_svc"
+
+[actions.yaml]
+description = "View ingress YAML — read"
+command = "kubectl get ingress {0} -n $K8S_NS --context $K8S_CTX -o yaml | less -R"
+mode = "execute"
+
+[actions.to_pods]
+description = "-> pods in this namespace"
+command = "tv k8s-pods-scoped --input-header \"$K8S_CTX / $K8S_NS\""
+mode = "execute"
+
+[actions.to_deploy]
+description = "-> deployments in this namespace"
+command = "tv k8s-deploy-scoped --input-header \"$K8S_CTX / $K8S_NS\""
+mode = "execute"
+
+[actions.to_svc]
+description = "-> services in this namespace"
+command = "tv k8s-svc-scoped --input-header \"$K8S_CTX / $K8S_NS\""
+mode = "execute"

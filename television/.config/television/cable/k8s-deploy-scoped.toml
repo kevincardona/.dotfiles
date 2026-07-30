@@ -1,0 +1,75 @@
+[metadata]
+name = "k8s-deploy-scoped"
+description = """
+Deployments in $K8S_CTX / $K8S_NS. READ-ONLY unless the namespace's perm is 'rw'.
+
+  enter / ctrl-l  logs (all pods) in a dedicated window   ctrl-y  yaml
+  ctrl-g  -> ingresses   ctrl-v  -> services   (ctrl-x: -> pods)
+  ctrl-x  more: rollout status/history, events, RESTART (write)
+"""
+requirements = ["kubectl"]
+
+[source]
+# rows (space-delimited):  name ready age   (context/namespace from env)
+output = "{0}"
+display = "{0}   ready {1}  {2}"
+command = '''kubectl get deployments --no-headers -n "$K8S_NS" --context "$K8S_CTX" 2>/dev/null | awk '{print $1" "$2" "$NF}' '''
+
+[preview]
+command = "kubectl describe deployment {0} -n $K8S_NS --context $K8S_CTX"
+
+[ui]
+layout = "portrait"
+preview_panel = { size = 65 }
+
+[keybindings]
+enter = "actions:logs"
+ctrl-l = "actions:logs"
+ctrl-y = "actions:yaml"
+ctrl-g = "actions:to_ingress"
+ctrl-v = "actions:to_svc"
+
+[actions.logs]
+description = "Logs from all pods in a dedicated tmux window — read"
+command = "$HOME/.local/bin/klog $K8S_CTX $K8S_NS deployment/{0}"
+mode = "execute"
+
+[actions.status]
+description = "Rollout status — read"
+command = "kubectl rollout status deployment/{0} -n $K8S_NS --context $K8S_CTX"
+mode = "execute"
+
+[actions.history]
+description = "Rollout history — read"
+command = "kubectl rollout history deployment/{0} -n $K8S_NS --context $K8S_CTX | less -R"
+mode = "execute"
+
+[actions.yaml]
+description = "View deployment YAML — read"
+command = "kubectl get deployment {0} -n $K8S_NS --context $K8S_CTX -o yaml | less -R"
+mode = "execute"
+
+[actions.events]
+description = "Recent events in this namespace — read"
+command = "kubectl get events -n $K8S_NS --context $K8S_CTX --sort-by=.lastTimestamp | less -R"
+mode = "execute"
+
+[actions.to_pods]
+description = "-> pods in this namespace"
+command = "tv k8s-pods-scoped --input-header \"$K8S_CTX / $K8S_NS\""
+mode = "execute"
+
+[actions.to_ingress]
+description = "-> ingresses in this namespace"
+command = "tv k8s-ingress-scoped --input-header \"$K8S_CTX / $K8S_NS\""
+mode = "execute"
+
+[actions.to_svc]
+description = "-> services in this namespace"
+command = "tv k8s-svc-scoped --input-header \"$K8S_CTX / $K8S_NS\""
+mode = "execute"
+
+[actions.restart]
+description = "Rollout restart — WRITE, only if namespace perm is rw"
+command = "if [ \"$K8S_PERM\" = rw ]; then kubectl rollout restart deployment/{0} -n $K8S_NS --context $K8S_CTX; else echo; echo \"REFUSED: $K8S_CTX/$K8S_NS is read-only (perm not rw in k8s-targets).\"; echo; printf 'Press enter... '; read _; fi"
+mode = "execute"

@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+# jira-issues — list your assigned Jira issues and open them in the browser.
+# Backs the television `jira` channel. Jira Cloud REST API + API token (no CLI).
+#
+#   jira-issues --list        TSV: key  status  type  summary  url   (assigned to me)
+#   jira-issues --show <KEY>   formatted details (used for the preview pane)
+#   jira-issues --help         setup instructions
+#
+# Config (first found wins):
+#   env:   JIRA_BASE_URL  JIRA_EMAIL  JIRA_API_TOKEN  [JIRA_JQL]
+#   file:  ~/.config/jira/config   (KEY=value shell file, sourced)
+#   token: macOS Keychain  →  security add-generic-password -s jira-api-token -a "$JIRA_EMAIL" -w
+#
+# Create a token at: https://id.atlassian.com/manage-profile/security/api-tokens
+
+set -uo pipefail
+
+RED=$'\033[0;31m'; NC=$'\033[0m'
+CONFIG="${HOME}/.config/jira/config"
+
+usage() {
+    sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'
+    exit "${1:-0}"
+}
+
+# --- config ---------------------------------------------------------------
+[ -f "$CONFIG" ] && . "$CONFIG"
+
+BASE="${JIRA_BASE_URL:-}"
+EMAIL="${JIRA_EMAIL:-}"
+TOKEN="${JIRA_API_TOKEN:-${JIRA_TOKEN:-}}"
+JQL="${JIRA_JQL:-assignee = currentUser() AND statusCategory != Done ORDER BY updated DESC}"
+
+# token: fall back to the macOS Keychain (like glab-pipelines)
+if [ -z "$TOKEN" ] && command -v security >/dev/null 2>&1; then
+    TOKEN=$(security find-generic-password -s jira-api-token ${EMAIL:+-a "$EMAIL"} -w 2>/dev/null || true)
+fi
+
+# normalise base url: strip trailing slash, ensure https://
+BASE="${BASE%/}"
+[ -n "$BASE" ] && [[ $BASE != http*://* ]] && BASE="https://$BASE"
+
+require_config() {
+    local missing=()
+    [ -z "$BASE" ]  && missing+=("JIRA_BASE_URL (e.g. your-team.atlassian.net)")
+    [ -z "$EMAIL" ] && missing+=("JIRA_EMAIL (your Atlassian account email)")
+    [ -z "$TOKEN" ] && missing+=("JIRA_API_TOKEN (or a 'jira-api-token' Keychain entry)")
+    if [ "${#missing[@]}" -gt 0 ]; then
+        {
+            echo "${RED}jira-issues: not configured.${NC} Set these in $CONFIG:"
+            printf '  %s\n' "${missing[@]}"
+            echo
+            echo "Example ~/.config/jira/config:"
+            echo "  JIRA_BASE_URL=your-team.atlassian.net"
+            echo "  JIRA_EMAIL=you@example.com"
+            echo "  JIRA_API_TOKEN=xxxxxxxx   # or store in Keychain (see --help)"
+            echo
+            echo "Token: https://id.atlassian.com/manage-profile/security/api-tokens"
+        } >&2
+        exit 1
+    fi
+}
+
+api() {   # api <path> [curl-args...] -> response body; sets no globals
+    curl -sS --fail-with-body -u "$EMAIL:$TOKEN" -H "Accept: application/json" \
+        "$@" "$BASE$1" 2>/dev/null
+}
+
+# --- list -----------------------------------------------------------------
+cmd_list() {
+    require_config
+    local body resp
+    body=$(jq -n --arg jql "$JQL" \
+        '{jql:$jql, fields:["summary","status","issuetype","priority","updated"], maxResults:50}')
+    [ "${JIRA_DEBUG:-}" = 1 ] && echo "POST $BASE/rest/api/3/search/jql  jql=$JQL" >&2
+
+    resp=$(curl -sS --fail-with-body -u "$EMAIL:$TOKEN" \
+        -H "Accept: application/json" -H "Content-Type: application/json" \
+        -X POST --data "$body" "$BASE/rest/api/3/search/jql" 2>/dev/null)
+
+    if [ -z "$resp" ] || echo "$resp" | jq -e '.errorMessages? // .errors? // empty' >/dev/null 2>&1; then
+        echo "${RED}jira: $(echo "$resp" | jq -r '(.errorMessages // [.errors|to_entries[]|.value]) | join("; ") // "request failed"' 2>/dev/null)${NC}" >&2
+        exit 1
+    fi
+
+    # TSV: key  status  type  summary  url
+    echo "$resp" | jq -r --arg base "$BASE" '
+        .issues[]? | [
+            .key,
+            (.fields.status.name // "?"),
+            (.fields.issuetype.name // "?"),
+            (.fields.summary // "" | gsub("[\t\n]"; " ")),
+            ($base + "/browse/" + .key)
+        ] | @tsv'
+}
+
+# --- show (preview) -------------------------------------------------------
+cmd_show() {
+    require_config
+    local key=$1 resp
+    [ -z "$key" ] && { echo "usage: jira-issues --show <KEY>" >&2; exit 1; }
+    resp=$(api "/rest/api/3/issue/$key?fields=summary,status,priority,issuetype,assignee,reporter,labels,updated,description")
+    [ -z "$resp" ] && { echo "no such issue: $key"; return; }
+
+    echo "$resp" | jq -r '
+        "  " + .key + "  ·  " + (.fields.issuetype.name // "?") + "  ·  " + (.fields.status.name // "?"),
+        "  " + (.fields.summary // ""),
+        "",
+        "  priority: " + (.fields.priority.name // "—")
+          + "   assignee: " + (.fields.assignee.displayName // "unassigned")
+          + "   reporter: " + (.fields.reporter.displayName // "—"),
+        "  updated:  " + ((.fields.updated // "")[0:16] | gsub("T"; " "))
+          + (if (.fields.labels|length)>0 then "   labels: " + (.fields.labels|join(", ")) else "" end),
+        "  " + ("─" * 40)
+    '
+    # best-effort plain-text description from Atlassian Document Format
+    echo "$resp" | jq -r '[.fields.description | .. | .text? // empty] | join(" ")' 2>/dev/null \
+        | fold -s -w 76 | sed 's/^/  /' | head -30
+}
+
+case "${1:---list}" in
+    --list|list)  cmd_list ;;
+    --show|show)  shift; cmd_show "${1:-}" ;;
+    -h|--help)    usage 0 ;;
+    *)            echo "unknown option: $1" >&2; usage 1 ;;
+esac

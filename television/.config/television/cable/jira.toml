@@ -1,0 +1,36 @@
+# Television channel: your assigned Jira issues (not completed), open in browser.
+# Backed by the `jira-issues` script (Jira Cloud REST API + API token, no CLI).
+# First run needs ~/.config/jira/config — run `jira-issues --help` for setup.
+#
+#   enter   open the issue in your browser        ctrl-r  reload
+
+[metadata]
+name = "jira"
+description = """
+Your assigned, not-yet-done Jira issues. Configure with ~/.config/jira/config
+(JIRA_BASE_URL / JIRA_EMAIL / JIRA_API_TOKEN); see `jira-issues --help`.
+
+  enter   open issue in browser     ctrl-r  reload
+"""
+
+[source]
+# jira-issues --list emits TAB-separated:  key  status  type  summary  url
+# Absolute path: tv's shell may not have ~/.local/bin on PATH (tmux server PATH).
+command = "$HOME/.local/bin/jira-issues --list"
+display = "{split:\t:0}  {split:\t:1}  {split:\t:3}"
+output = "{split:\t:4}"
+
+[preview]
+command = "$HOME/.local/bin/jira-issues --show '{split:\t:0}'"
+
+[ui]
+layout = "portrait"
+preview_panel = { size = 50 }
+
+[keybindings]
+enter = "actions:open"
+
+[actions.open]
+description = "Open the issue in your browser"
+command = "open '{split:\t:4}'"
+mode = "execute"

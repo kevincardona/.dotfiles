@@ -8,7 +8,7 @@ GITLAB_TOKEN or macOS Keychain).
 
   enter   open in browser     ctrl-w  watch in background (notifies when done)
   ctrl-p  pin to watchlist    ctrl-d  unpin      ctrl-o  jump to project session
-  ctrl-r  reload
+  ctrl-g  jump to Jira ticket (or MR / commit)   ctrl-r  reload
 """
 
 [source]
@@ -35,6 +35,7 @@ ctrl-w = "actions:watch"
 ctrl-p = "actions:pin"
 ctrl-d = ["actions:unpin", "reload_source"]
 ctrl-o = "actions:goto"
+ctrl-g = "actions:related"
 
 [actions.open]
 description = "Open pipeline in browser"
@@ -59,4 +60,9 @@ mode = "fork"
 [actions.goto]
 description = "Jump to the project's local tmux session"
 command = "$HOME/.local/bin/glab-pipelines --goto '{split:\t:4}'"
+mode = "execute"
+
+[actions.related]
+description = "Jump to the Jira ticket (from the branch), else the MR, else the commit"
+command = "$HOME/.local/bin/glab-pipelines --related '{split:\t:4}' '{split:\t:2}'"
 mode = "execute"

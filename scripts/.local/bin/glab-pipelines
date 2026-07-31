@@ -27,6 +27,8 @@ PINNED_MODE=false
 WATCH_BG_URL=""
 WATCH_RUN_URL=""
 GOTO_URL=""
+RELATED_URL=""
+RELATED_REF=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -70,6 +72,11 @@ while [[ $# -gt 0 ]]; do
             GOTO_URL="${2:-}"
             [[ -z "$GOTO_URL" || "$GOTO_URL" == -* ]] && { echo "--goto needs a url"; exit 1; }
             shift 2
+            ;;
+        --related)
+            RELATED_URL="${2:-}"; RELATED_REF="${3:-}"
+            [[ -z "$RELATED_URL" || "$RELATED_URL" == -* ]] && { echo "--related needs a url [ref]"; exit 1; }
+            shift $(( $# >= 3 ? 3 : $# ))
             ;;
         --cloudbees|-c)
             CLOUDBEES=true
@@ -402,6 +409,42 @@ watch_run() {
     osascript -e "display notification \"${P_PROJECT}\" with title \"${title}\" sound name \"${sound}\"" >/dev/null 2>&1
 }
 
+# Jira base URL from the jira-issues config (reused; empty if not configured).
+jira_base() {
+    local cfg="$HOME/.config/jira/config" base=""
+    [ -f "$cfg" ] && base=$(. "$cfg" 2>/dev/null; printf '%s' "${JIRA_BASE_URL:-}")
+    base="${base%/}"
+    [ -n "$base" ] && [[ $base != http*://* ]] && base="https://$base"
+    printf '%s' "$base"
+}
+
+# Jump to the work item behind a pipeline: Jira ticket (from the branch name) if
+# we can, else the merge request for that branch, else the commit.
+related() {
+    local url="$1" ref="$2" key jbase token mr resp sha
+    parse_pipeline_url "$url"
+
+    # 1) Jira key embedded in the branch — free, no API call.
+    key=$(printf '%s' "$ref" | grep -oE '[A-Z][A-Z0-9]+-[0-9]+' | head -1)
+    jbase=$(jira_base)
+    if [ -n "$key" ] && [ -n "$jbase" ]; then open "$jbase/browse/$key"; return 0; fi
+
+    token=$(get_token_soft "$P_HOST")
+    # 2) merge request for this source branch.
+    if [ -n "$ref" ]; then
+        mr=$(curl -s -H "PRIVATE-TOKEN: $token" \
+            "https://${P_HOST}/api/v4/projects/${P_PROJECT//\//%2F}/merge_requests?source_branch=${ref}&order_by=updated_at&per_page=1" 2>/dev/null \
+            | jq -r '.[0].web_url // empty' 2>/dev/null || true)
+    fi
+    if [ -n "${mr:-}" ]; then open "$mr"; return 0; fi
+
+    # 3) the commit the pipeline ran on.
+    resp=$(curl -s -H "PRIVATE-TOKEN: $token" \
+        "https://${P_HOST}/api/v4/projects/${P_PROJECT//\//%2F}/pipelines/${P_ID}" 2>/dev/null || true)
+    sha=$(echo "$resp" | jq -r '.sha // empty' 2>/dev/null || true)
+    if [ -n "${sha:-}" ]; then open "https://${P_HOST}/${P_PROJECT}/-/commit/${sha}"; else open "$url"; fi
+}
+
 # Jump to (or create) the local tmux session for a pinned pipeline's project.
 goto_session() {
     parse_pipeline_url "$1"
@@ -609,5 +652,6 @@ if [[ "$PINNED_MODE" == "true" ]]; then list_pinned;          exit 0; fi
 if [[ -n "$WATCH_BG_URL" ]];  then watch_bg "$WATCH_BG_URL";   exit 0; fi
 if [[ -n "$WATCH_RUN_URL" ]]; then watch_run "$WATCH_RUN_URL"; exit 0; fi
 if [[ -n "$GOTO_URL" ]];      then goto_session "$GOTO_URL";   exit 0; fi
+if [[ -n "$RELATED_URL" ]];   then related "$RELATED_URL" "$RELATED_REF"; exit 0; fi
 
 main

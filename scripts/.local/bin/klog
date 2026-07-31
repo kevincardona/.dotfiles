@@ -31,7 +31,7 @@ if [ "${1:-}" = "--stream" ]; then
           | (capture("^(\\[(?<p>[^\\]]+)\\]\\s+)?(?<m>.*)$")) as $c
           | ($c.m|try fromjson catch null) as $j
           | if ($j|type)=="object"
-            then $j + {_at:$w} + (if $c.p then {_pod:$c.p} else {} end)
+            then ({_at:$w} + (if $c.p then {_pod:$c.p} else {} end) + $j)
             else "[" + $w + (if $c.p then "/"+$c.p else "" end) + "] " + $c.m
             end'
     printf '\n\033[2m[log stream ended — press enter to close]\033[0m'; read -r _ </dev/tty 2>/dev/null || true
@@ -76,6 +76,11 @@ if [ "${1:-}" = "--group" ]; then
             case "$grp" in ''|\#*) continue ;; esac
             [ "$grp" = "$group" ] || continue
             [ -z "$ns" ] && continue
+            # Only open a pane where the target actually exists — skip namespaces
+            # in the group that don't run this deployment/pod (and unreachable
+            # contexts, via the short timeout). This is why "all in the group" was
+            # opening panes that just errored.
+            kubectl get "$target" -n "$ns" --context "$ctx" --request-timeout=5s >/dev/null 2>&1 || continue
             pane="$self --stream '$ctx' '$ns' '$target'"
             if [ -n "$first" ]; then
                 if tmux has-session -t "$SESSION" 2>/dev/null; then

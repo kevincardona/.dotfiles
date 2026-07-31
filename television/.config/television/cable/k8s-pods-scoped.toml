@@ -4,7 +4,7 @@ description = """
 Pods in $K8S_CTX / $K8S_NS. READ-ONLY unless the namespace's perm is 'rw'.
 
   enter / ctrl-l  logs in a dedicated window   ctrl-y  yaml    ctrl-e  exec (WRITE)
-  ctrl-d  -> deployments   ctrl-g  -> ingresses   ctrl-v  -> services   (same namespace)
+  ctrl-d  -> this pod's deployment   ctrl-g  -> ingresses   ctrl-v  -> services
   ctrl-x  more: events, top
 """
 requirements = ["kubectl"]
@@ -52,8 +52,8 @@ command = "kubectl top pod {0} -n $K8S_NS --context $K8S_CTX --containers | less
 mode = "execute"
 
 [actions.to_deploy]
-description = "-> deployments in this namespace"
-command = "tv k8s-deploy-scoped --input-header \"$K8S_CTX / $K8S_NS\""
+description = "-> this pod's deployment (derived from the pod name)"
+command = "d=$(printf '%s' '{0}' | sed -E 's/-[a-z0-9]+-[a-z0-9]+$//'); tv k8s-deploy-scoped --input \"$d\" --input-header \"$K8S_CTX / $K8S_NS · pod {0}\""
 mode = "execute"
 
 [actions.to_ingress]

@@ -26,6 +26,7 @@ preview_panel = { size = 45 }
 [keybindings]
 enter = "actions:open"
 ctrl-w = "actions:watch"
+ctrl-p = "actions:pin"
 
 [actions.open]
 description = "Open pipeline in browser"
@@ -36,3 +37,8 @@ mode = "execute"
 description = "Watch pipeline until it finishes (desktop notification)"
 command = "$HOME/.local/bin/glab-pipelines --watch {split:\t:0}"
 mode = "execute"
+
+[actions.pin]
+description = "Pin to the gitlab-tracker watchlist"
+command = "$HOME/.local/bin/glab-pipelines --pin '{split:\t:4}'"
+mode = "fork"

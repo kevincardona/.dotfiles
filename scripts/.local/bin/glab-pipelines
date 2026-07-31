@@ -21,6 +21,9 @@ CLOUDBEES=false
 DIFF_MODE=false
 WATCH_PIPELINE=""
 LIST_MODE=false
+PIN_URL=""
+UNPIN_URL=""
+PINNED_MODE=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -34,6 +37,20 @@ while [[ $# -gt 0 ]]; do
             ;;
         --list)
             LIST_MODE=true
+            shift
+            ;;
+        --pin)
+            PIN_URL="${2:-}"
+            [[ -z "$PIN_URL" || "$PIN_URL" == -* ]] && { echo "--pin needs a pipeline url"; exit 1; }
+            shift 2
+            ;;
+        --unpin)
+            UNPIN_URL="${2:-}"
+            [[ -z "$UNPIN_URL" || "$UNPIN_URL" == -* ]] && { echo "--unpin needs a pipeline url"; exit 1; }
+            shift 2
+            ;;
+        --pinned|--tracker)
+            PINNED_MODE=true
             shift
             ;;
         --cloudbees|-c)
@@ -273,6 +290,69 @@ watch_pipeline() {
     done
 }
 
+# ---------------------------------------------------------------------------
+# Pinned-pipeline tracker: a persistent watchlist across repos. A pipeline's
+# web_url encodes host + project + id, so each pin is just its URL — we re-derive
+# everything to re-fetch its current status.
+# ---------------------------------------------------------------------------
+PIN_STORE="${XDG_STATE_HOME:-$HOME/.local/state}/glab-pipelines/pinned"
+
+# Token lookup that never exits (get_token aborts on miss; the tracker must not).
+get_token_soft() {
+    local host="${1:-gitlab.com}"
+    local token="${GITLAB_TOKEN:-${GLAB_TOKEN:-}}"
+    [[ -z "$token" ]] && token=$(security find-internet-password -s "$host" 2>/dev/null | grep "password" | cut -d'"' -f4 || true)
+    echo "$token"
+}
+
+# Parse a pipeline web_url -> P_HOST P_PROJECT P_ID
+parse_pipeline_url() {
+    local url="$1" rest path
+    rest="${url#*://}"
+    P_HOST="${rest%%/*}"
+    path="${rest#*/}"
+    P_PROJECT="${path%%/-/pipelines/*}"
+    P_ID="${path##*/-/pipelines/}"
+    P_ID="${P_ID%%[/?#]*}"
+}
+
+pin_add() {
+    local url="$1"
+    mkdir -p "$(dirname "$PIN_STORE")"; touch "$PIN_STORE"
+    if grep -qxF "$url" "$PIN_STORE" 2>/dev/null; then
+        echo "already pinned"
+    else
+        echo "$url" >> "$PIN_STORE"; echo "pinned"
+    fi
+}
+
+pin_remove() {
+    local url="$1"
+    [[ -f "$PIN_STORE" ]] || return 0
+    grep -vxF "$url" "$PIN_STORE" > "${PIN_STORE}.tmp" 2>/dev/null || true
+    mv "${PIN_STORE}.tmp" "$PIN_STORE"
+}
+
+# TSV for the `gitlab-tracker` channel:  id  status  project  ref  web_url
+list_pinned() {
+    [[ -f "$PIN_STORE" ]] || return 0
+    local url token resp status ref web
+    while IFS= read -r url; do
+        [[ -z "$url" ]] && continue
+        parse_pipeline_url "$url"
+        [[ -z "$P_ID" ]] && continue
+        token=$(get_token_soft "$P_HOST")
+        resp=$(curl -s -H "PRIVATE-TOKEN: $token" \
+            "https://${P_HOST}/api/v4/projects/${P_PROJECT//\//%2F}/pipelines/${P_ID}" 2>/dev/null || true)
+        status=$(echo "$resp" | jq -r '.status // "unknown"' 2>/dev/null || echo unknown)
+        ref=$(echo "$resp"    | jq -r '.ref // "?"'        2>/dev/null || echo "?")
+        web=$(echo "$resp"    | jq -r '.web_url // empty'  2>/dev/null || echo "")
+        [[ -z "$web" ]] && web="$url"
+        [[ -z "$status" ]] && status="unknown"
+        printf '%s\t%s\t%s\t%s\t%s\n' "$P_ID" "$status" "$P_PROJECT" "$ref" "$web"
+    done < "$PIN_STORE"
+}
+
 main() {
     # If watch mode with no ID, flag to watch after selection
     local WATCH_AFTER_SELECT=false
@@ -453,5 +533,11 @@ main() {
     echo -e "${GREEN}→ Opening:${NC} $url"
     open "$url"
 }
+
+# Pinned-tracker modes are repo-independent — handle them before main() (which
+# requires a git remote).
+if [[ -n "$PIN_URL" ]];   then pin_add "$PIN_URL";     exit 0; fi
+if [[ -n "$UNPIN_URL" ]]; then pin_remove "$UNPIN_URL"; exit 0; fi
+if [[ "$PINNED_MODE" == "true" ]]; then list_pinned;   exit 0; fi
 
 main

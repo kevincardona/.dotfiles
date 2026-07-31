@@ -10,8 +10,10 @@
 # switches you into that session (creating + attaching it if it doesn't exist,
 # even when you launched tv from outside tmux). Re-opening the same target jumps
 # to the window already tailing it, so your tails stay "in memory" one keypress
-# away. Scroll / select with copy-mode (mouse wheel or prefix+[); prefix+p hops
-# back to your last window; prefix+L / prefix+( switches away from the session.
+# away. Each window views logs in `less -RS +F`: no wrap (←/→ scroll wide lines),
+# '/' search, live follow — Ctrl-C pauses follow, Shift-F resumes, q quits (set
+# KLOG_LESS=0 for a plain live pane with copy-mode). prefix+p hops back to your
+# last window; prefix+L / prefix+( switches away from the session.
 
 SESSION="k8s"
 
@@ -24,17 +26,36 @@ dbg() { [ -n "${KLOG_DEBUG:-}" ] && printf '%s [%s] %s\n' "$(date '+%H:%M:%S')" 
 # --- streaming worker: this is what each log pane actually runs ---
 if [ "${1:-}" = "--stream" ]; then
     export KCTX="$2" KNS="$3"; target="$4"
-    printf '\033[2m── %s / %s · %s ──   (Ctrl-C stops; scroll with copy-mode)\033[0m\n' "$2" "$3" "$target"
-    kubectl logs -f "$target" -n "$3" --context "$2" --all-containers --prefix --max-log-requests=30 2>&1 \
-      | jq --unbuffered -R -r -C -c '
-          (env.KCTX+"/"+env.KNS) as $w
-          | (capture("^(\\[(?<p>[^\\]]+)\\]\\s+)?(?<m>.*)$")) as $c
-          | ($c.m|try fromjson catch null) as $j
-          | if ($j|type)=="object"
-            then ({_at:$w} + (if $c.p then {_pod:$c.p} else {} end) + $j)
-            else "[" + $w + (if $c.p then "/"+$c.p else "" end) + "] " + $c.m
-            end'
-    printf '\n\033[2m[log stream ended — press enter to close]\033[0m'; read -r _ </dev/tty 2>/dev/null || true
+
+    # The formatted stream: JSON-highlighted, each line led by [ctx/ns/pod].
+    emit() {
+        printf '\033[2m── %s / %s · %s ──\033[0m\n' "$KCTX" "$KNS" "$target"
+        kubectl logs -f "$target" -n "$KNS" --context "$KCTX" --all-containers --prefix --max-log-requests=30 2>&1 \
+          | jq --unbuffered -R -r -C -c '
+              (env.KCTX+"/"+env.KNS) as $w
+              | (capture("^(\\[(?<p>[^\\]]+)\\]\\s+)?(?<m>.*)$")) as $c
+              | ($c.m|try fromjson catch null) as $j
+              | if ($j|type)=="object"
+                then ({_at:$w} + (if $c.p then {_pod:$c.p} else {} end) + $j)
+                else "[" + $w + (if $c.p then "/"+$c.p else "" end) + "] " + $c.m
+                end'
+    }
+
+    # Default: view in `less -RS +F` — no wrap (←/→ scroll wide lines), '/' search,
+    # full scrollback, follows live like tail. A background writer feeds a temp
+    # file and IGNORES SIGINT, so Ctrl-C only pauses less's follow instead of
+    # killing the tail (a naive `emit | less +F` shares the pgroup, so Ctrl-C would
+    # SIGINT kubectl/jq too). Shift-F resumes, q quits. KLOG_LESS=0 → live pane.
+    if [ "${KLOG_LESS:-1}" = 1 ] && command -v less >/dev/null 2>&1; then
+        f=$(mktemp "${TMPDIR:-/tmp}/klog.XXXXXX") || { emit; exit 0; }
+        ( trap '' INT; emit >>"$f" 2>&1 ) &
+        writer=$!
+        trap 'kill "$writer" 2>/dev/null; rm -f "$f"' EXIT HUP TERM
+        less -RS +F "$f"
+    else
+        emit
+        printf '\n\033[2m[log stream ended — press enter to close]\033[0m'; read -r _ </dev/tty 2>/dev/null || true
+    fi
     exit 0
 fi
 

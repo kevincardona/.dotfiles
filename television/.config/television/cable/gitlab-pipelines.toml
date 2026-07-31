@@ -1,18 +1,24 @@
 [metadata]
 name = "gitlab-pipelines"
 description = """
-CI pipelines for the current repo, via your glab-pipelines script (GitLab REST
-API + token from GITLAB_TOKEN or macOS Keychain). Run it from inside a repo
-that has a GitLab remote.
+CI pipelines via your glab-pipelines script (GitLab REST API + token from
+GITLAB_TOKEN or macOS Keychain).
 
-  enter   open pipeline in browser     ctrl-w  watch until done (notifies)
+  ctrl-s  switch source: Pipelines (this repo) ↔ Pinned (watchlist, any repo)
+
+  enter   open in browser     ctrl-w  watch in background (notifies when done)
+  ctrl-p  pin to watchlist    ctrl-d  unpin      ctrl-o  jump to project session
   ctrl-r  reload
 """
 
 [source]
-# glab-pipelines --list emits TAB-separated:  id  status  ref  date  web_url
+# Two sources, cycled with ctrl-s. Both emit TAB-separated:
+#   id  status  ref  context  web_url   (context = date for repo, project for pinned)
 # Absolute path: tv's shell may not have ~/.local/bin on PATH (tmux server PATH).
-command = "$HOME/.local/bin/glab-pipelines --list"
+command = [
+  { name = "Pipelines", run = "$HOME/.local/bin/glab-pipelines --list" },
+  { name = "Pinned",    run = "$HOME/.local/bin/glab-pipelines --pinned" },
+]
 display = "{split:\t:1}  #{split:\t:0}  {split:\t:2}  {split:\t:3}"
 output = "{split:\t:4}"
 
@@ -27,6 +33,8 @@ preview_panel = { size = 45 }
 enter = "actions:open"
 ctrl-w = "actions:watch"
 ctrl-p = "actions:pin"
+ctrl-d = ["actions:unpin", "reload_source"]
+ctrl-o = "actions:goto"
 
 [actions.open]
 description = "Open pipeline in browser"
@@ -34,11 +42,21 @@ command = "open {split:\t:4}"
 mode = "execute"
 
 [actions.watch]
-description = "Watch pipeline until it finishes (desktop notification)"
-command = "$HOME/.local/bin/glab-pipelines --watch {split:\t:0}"
+description = "Watch in the background; desktop notification when it finishes"
+command = "$HOME/.local/bin/glab-pipelines --watch-bg '{split:\t:4}'"
 mode = "execute"
 
 [actions.pin]
-description = "Pin to the gitlab-tracker watchlist"
+description = "Pin to the watchlist (ctrl-s → Pinned)"
 command = "$HOME/.local/bin/glab-pipelines --pin '{split:\t:4}'"
 mode = "fork"
+
+[actions.unpin]
+description = "Remove from the watchlist"
+command = "$HOME/.local/bin/glab-pipelines --unpin '{split:\t:4}'"
+mode = "fork"
+
+[actions.goto]
+description = "Jump to the project's local tmux session"
+command = "$HOME/.local/bin/glab-pipelines --goto '{split:\t:4}'"
+mode = "execute"

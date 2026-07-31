@@ -24,6 +24,9 @@ LIST_MODE=false
 PIN_URL=""
 UNPIN_URL=""
 PINNED_MODE=false
+WATCH_BG_URL=""
+WATCH_RUN_URL=""
+GOTO_URL=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -52,6 +55,21 @@ while [[ $# -gt 0 ]]; do
         --pinned|--tracker)
             PINNED_MODE=true
             shift
+            ;;
+        --watch-bg)
+            WATCH_BG_URL="${2:-}"
+            [[ -z "$WATCH_BG_URL" || "$WATCH_BG_URL" == -* ]] && { echo "--watch-bg needs a url"; exit 1; }
+            shift 2
+            ;;
+        --watch-run)
+            WATCH_RUN_URL="${2:-}"
+            [[ -z "$WATCH_RUN_URL" || "$WATCH_RUN_URL" == -* ]] && { echo "--watch-run needs a url"; exit 1; }
+            shift 2
+            ;;
+        --goto)
+            GOTO_URL="${2:-}"
+            [[ -z "$GOTO_URL" || "$GOTO_URL" == -* ]] && { echo "--goto needs a url"; exit 1; }
+            shift 2
             ;;
         --cloudbees|-c)
             CLOUDBEES=true
@@ -333,7 +351,8 @@ pin_remove() {
     mv "${PIN_STORE}.tmp" "$PIN_STORE"
 }
 
-# TSV for the `gitlab-tracker` channel:  id  status  project  ref  web_url
+# TSV for the pinned sub-source. Columns match --list (id status ref context url)
+# so the gitlab-pipelines channel shares one display template; context=project.
 list_pinned() {
     [[ -f "$PIN_STORE" ]] || return 0
     local url token resp status ref web
@@ -349,8 +368,56 @@ list_pinned() {
         web=$(echo "$resp"    | jq -r '.web_url // empty'  2>/dev/null || echo "")
         [[ -z "$web" ]] && web="$url"
         [[ -z "$status" ]] && status="unknown"
-        printf '%s\t%s\t%s\t%s\t%s\n' "$P_ID" "$status" "$P_PROJECT" "$ref" "$web"
+        printf '%s\t%s\t%s\t%s\t%s\n' "$P_ID" "$status" "$ref" "$P_PROJECT" "$web"
     done < "$PIN_STORE"
+}
+
+# --- background watch + jump-to-session (both take a pipeline web_url) --------
+
+# Fire off a detached watcher and return immediately, so the tv popup can close.
+watch_bg() {
+    parse_pipeline_url "$1"
+    nohup "$0" --watch-run "$1" >/dev/null 2>&1 &
+    echo "▶ watching pipeline #${P_ID} in the background — you'll get a notification when it finishes."
+}
+
+# The detached loop: poll until a terminal status, notify, then exit.
+watch_run() {
+    parse_pipeline_url "$1"
+    local token resp status title sound
+    token=$(get_token_soft "$P_HOST")
+    while true; do
+        resp=$(curl -s -H "PRIVATE-TOKEN: $token" \
+            "https://${P_HOST}/api/v4/projects/${P_PROJECT//\//%2F}/pipelines/${P_ID}" 2>/dev/null || true)
+        status=$(echo "$resp" | jq -r '.status // "unknown"' 2>/dev/null || echo unknown)
+        case "$status" in
+            success)            title="✓ Pipeline #${P_ID} passed";   sound="Glass"; break ;;
+            failed)             title="✗ Pipeline #${P_ID} failed";   sound="Basso"; break ;;
+            canceled|skipped)   title="⊘ Pipeline #${P_ID} ${status}"; sound="Funk";  break ;;
+            manual)             title="⏸ Pipeline #${P_ID} waiting (manual)"; sound="Funk"; break ;;
+            unknown)            title="? Pipeline #${P_ID} not found"; sound="Funk";  break ;;
+        esac
+        sleep 30
+    done
+    osascript -e "display notification \"${P_PROJECT}\" with title \"${title}\" sound name \"${sound}\"" >/dev/null 2>&1
+}
+
+# Jump to (or create) the local tmux session for a pinned pipeline's project.
+goto_session() {
+    parse_pipeline_url "$1"
+    local repo name dir
+    repo="${P_PROJECT##*/}"                 # basename of the gitlab project path
+    name=$(printf '%s' "$repo" | tr '.' '_')  # sessionizer session-name convention
+    if ! tmux has-session -t="$name" 2>/dev/null; then
+        # best-effort: find a local checkout among tmux-sessionizer's roots
+        dir=$("$HOME/.local/bin/tmux-sessionizer" --list 2>/dev/null | grep -iE "/${repo}$" | head -1)
+        if [[ -z "$dir" ]]; then
+            osascript -e "display notification \"No local checkout for ${repo}\" with title \"gitlab\"" >/dev/null 2>&1
+            return 0
+        fi
+        tmux new-session -ds "$name" -c "$dir"
+    fi
+    [[ -n "${TMUX:-}" ]] && tmux switch-client -t "$name" || tmux attach-session -t "$name"
 }
 
 main() {
@@ -536,8 +603,11 @@ main() {
 
 # Pinned-tracker modes are repo-independent — handle them before main() (which
 # requires a git remote).
-if [[ -n "$PIN_URL" ]];   then pin_add "$PIN_URL";     exit 0; fi
-if [[ -n "$UNPIN_URL" ]]; then pin_remove "$UNPIN_URL"; exit 0; fi
-if [[ "$PINNED_MODE" == "true" ]]; then list_pinned;   exit 0; fi
+if [[ -n "$PIN_URL" ]];       then pin_add "$PIN_URL";        exit 0; fi
+if [[ -n "$UNPIN_URL" ]];     then pin_remove "$UNPIN_URL";    exit 0; fi
+if [[ "$PINNED_MODE" == "true" ]]; then list_pinned;          exit 0; fi
+if [[ -n "$WATCH_BG_URL" ]];  then watch_bg "$WATCH_BG_URL";   exit 0; fi
+if [[ -n "$WATCH_RUN_URL" ]]; then watch_run "$WATCH_RUN_URL"; exit 0; fi
+if [[ -n "$GOTO_URL" ]];      then goto_session "$GOTO_URL";   exit 0; fi
 
 main

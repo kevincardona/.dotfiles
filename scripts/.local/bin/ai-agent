@@ -21,8 +21,13 @@ SESSIONIZER="${HOME}/.local/bin/tmux-sessionizer"
 
 # --- agent registry -------------------------------------------------------
 ALL_AGENTS=(claude codex opencode gemini cursor ollama)
-# Foreground commands that mean "an AI agent is running in this pane".
-AGENT_CMD_RE='^(claude|codex|opencode|gemini|cursor-agent|ollama|aider)$'
+# Foreground commands that mean "an AI agent is running in this pane". Matched
+# case-insensitively (see cmd_list). `cursor agent` execs `cursor-agent`, but its
+# process name varies by version, so we match both `cursor` and `cursor-agent`.
+# Extend for a tool whose process name differs, e.g.:
+#   AI_AGENT_EXTRA_CMDS='node|aichat'   or override AI_AGENT_CMD_RE entirely.
+_agent_cmds="claude|codex|opencode|gemini|cursor-agent|cursor|ollama|aider${AI_AGENT_EXTRA_CMDS:+|${AI_AGENT_EXTRA_CMDS}}"
+AGENT_CMD_RE="${AI_AGENT_CMD_RE:-^(${_agent_cmds})$}"
 
 agent_cmd() {   # interactive command run inside the session
     case "$1" in
@@ -50,9 +55,9 @@ agent_resume_cmd() {   # resume the most recent conversation in the cwd ("" = un
 # missing from many terminal fonts; ● + ANSI always works (channel has ansi=true).
 agent_icon() {
     local c
-    case "$1" in
+    case "$(printf '%s' "$1" | tr 'A-Z' 'a-z')" in
         claude) c='95' ;; codex) c='92' ;; opencode) c='93' ;;
-        gemini) c='94' ;; cursor) c='97' ;; ollama) c='96' ;; *) c='90' ;;
+        gemini) c='94' ;; cursor|cursor-agent) c='97' ;; ollama) c='96' ;; *) c='90' ;;
     esac
     printf '\033[%sm●\033[0m' "$c"
 }
@@ -109,7 +114,8 @@ cmd_list() {
     #     id = session:window.pane so Enter attaches to the exact chat.
     if command -v tmux >/dev/null 2>&1; then
         while IFS=$'\t' read -r _ target cmd path; do
-            [[ $cmd =~ $AGENT_CMD_RE ]] || continue
+            cmd_lc=$(printf '%s' "$cmd" | tr 'A-Z' 'a-z')
+            [[ $cmd_lc =~ $AGENT_CMD_RE ]] || continue
             [ -n "$path" ] && live_paths+="$path"$'\n'
             printf '%s  %s  %s · %s\n' "$(agent_icon "$cmd")" "$target" "$cmd" "${path/#$HOME/\~}"
         done < <(tmux list-panes -a -F '#{window_activity}|#{session_name}:#{window_index}.#{pane_index}|#{pane_current_command}|#{pane_current_path}' 2>/dev/null \

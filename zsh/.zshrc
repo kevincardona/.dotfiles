@@ -86,7 +86,7 @@ export DOCKER_GATEWAY="172.20.0.1"
 
 
 ### MANAGED BY RANCHER DESKTOP START (DO NOT EDIT)
-export PATH="/Users/kcardona/.rd/bin:$PATH"
+export PATH="/Users/kevincardona/.rd/bin:$PATH"
 ### MANAGED BY RANCHER DESKTOP END (DO NOT EDIT)
 
 # Added by syseng-k8s-tools installer

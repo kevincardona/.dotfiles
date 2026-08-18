@@ -22,4 +22,5 @@ brew "bat"         # syntax-highlighted previews in television
 brew "jq"          # sw() search helper + JSON wrangling
 brew "argocd"      # television argocd-apps channel (run `argocd login` to use)
 brew "lazygit"     # `lg`
+brew "sesh"        # tmux session switcher (prefix + f)
 brew "trash"       # `del` / `dl` aliases

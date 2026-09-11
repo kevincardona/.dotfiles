@@ -32,7 +32,10 @@ ctrl-d = ["actions:kill_session", "reload_source"]
 
 [actions.connect]
 description = "Connect to selected session"
-command = "sesh connect '{strip_ansi|split: :1..|join: }'"
+# -s = switch-client instead of attach: swapping the *client* would rip the
+# terminal out of the popup's session, killing the popup mid-flight (the
+# "window disappears" bug). With -s the popup survives and the switch lands.
+command = "sesh connect -s '{strip_ansi|split: :1..|join: }'"
 mode = "execute"
 
 [actions.kill_session]

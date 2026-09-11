@@ -75,7 +75,9 @@ selected_name=$(basename "$selected" | tr . _)
 # Check if tmux is running
 tmux_running=$(pgrep tmux)
 
-# If not inside a tmux session and tmux is not running, start a new session
+# If not inside a tmux session and tmux is not running, start a new session.
+# (If tmux is running but we're outside it, fall through to attach below --
+# starting a nested server here would orphan it the moment this process exits.)
 if [[ -z $TMUX ]] && [[ -z $tmux_running ]]; then
     tmux new-session -s "$selected_name" -c "$selected"
     exit 0
@@ -86,10 +88,14 @@ if ! tmux has-session -t="$selected_name" 2> /dev/null; then
     tmux new-session -ds "$selected_name" -c "$selected"
 fi
 
-# Attach or switch to the selected session
-if [[ -z $TMUX ]]; then
-    tmux attach-session -t "$selected_name"
+# Attach or switch to the selected session. Inside tmux always switch-client:
+# an attach would swap the client away from the pane/popup that launched us
+# and close it out from under the picker (the "window disappears" bug).
+# -Z keeps zoom state for the popup that spawned us, so tv stays on screen
+# while the background session is switched.
+if [[ -n $TMUX ]]; then
+    tmux switch-client -t "$selected_name" -Z
 else
-    tmux switch-client -t "$selected_name"
+    tmux attach-session -t "$selected_name"
 fi
 

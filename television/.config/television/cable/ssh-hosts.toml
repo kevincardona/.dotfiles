@@ -25,7 +25,10 @@ ctrl-l = "actions:list-sessions"
 
 [actions.connect]
 description = "Connect in a dedicated tmux session for this host (create + SSH if missing)"
-command = '''h="{0}"; s="$(printf '%s' "$h" | tr '.: ' '___') (ssh)"; if ! tmux has-session -t "$s" 2>/dev/null; then tmux new-session -d -s "$s" "ssh $h"; tmux set-option -t "$s" default-command "ssh $h"; fi; if [ -n "$TMUX" ]; then tmux switch-client -t "$s"; else tmux attach-session -t "$s"; fi'''
+# Switch (not attach) so the popup that launched tv survives the jump; -Z keeps
+# the popup's zoom state. Attach would swap the client away from the popup and
+# close it mid-flight (the "window disappears" bug).
+command = '''h="{0}"; s="$(printf '%s' "$h" | tr '.: ' '___') (ssh)"; if ! tmux has-session -t "$s" 2>/dev/null; then tmux new-session -d -s "$s" "ssh $h"; tmux set-option -t "$s" default-command "ssh $h"; fi; if [ -n "$TMUX" ]; then tmux switch-client -Z -t "$s"; else tmux attach-session -t "$s"; fi'''
 mode = "execute"
 
 [actions.list-sessions]
